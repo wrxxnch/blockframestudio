@@ -1,0 +1,6 @@
+{
+  "name": "BlockFrame Web Editor",
+  "description": "Plataforma web completa baseada no mod BlockFrame para Minetest. Permite criar, editar, visualizar e exportar estruturas voxel compatíveis com o formato Lua.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
