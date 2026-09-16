@@ -1,5 +1,25 @@
-import itemsData from './data/bettercraftItems.json';
+import catalogData from './data/bettercraftCatalog.json';
 import { MinetestNodeMetadata } from './types';
+
+interface CatalogAsset {
+  name: string;
+  kind: 'texture' | 'model';
+  path: string;
+  url?: string;
+}
+
+interface CatalogItem {
+  type: 'node' | 'item';
+  name: string;
+  description: string;
+  drawtype?: string | null;
+  mesh?: string | null;
+  inventory_image?: string | null;
+  wield_image?: string | null;
+  tiles: string[];
+  paramtype?: string | null;
+  paramtype2?: string | null;
+}
 
 export interface BetterCraftItem {
   id: string;
@@ -11,10 +31,43 @@ export interface BetterCraftItem {
   color: string;
   category: string;
   drawtype?: string;
+  mesh?: string;
   drop?: string;
+  textureAssets: CatalogAsset[];
+  modelAssets: CatalogAsset[];
 }
 
-export const BETTERCRAFT_ITEMS: BetterCraftItem[] = itemsData as BetterCraftItem[];
+const catalogItems: CatalogItem[] = Array.isArray(catalogData)
+  ? catalogData as CatalogItem[]
+  : (catalogData as { items: CatalogItem[] }).items;
+
+function categoryFor(item: CatalogItem): string {
+  if (item.drawtype === 'plantlike' || item.name.includes('sapling') || item.name.includes('flower')) return 'Vegetation & Food';
+  if (item.name.includes('ore') || item.name.includes('stone') || item.name.includes('block') || item.name.includes('brick')) return 'Blocks & Ores';
+  if (item.name.includes('wood') || item.name.includes('plank') || item.name.includes('log')) return 'Construction & Decor';
+  if (item.name.includes('redstone') || item.name.includes('piston') || item.name.includes('lever')) return 'Redstone & Tech';
+  return item.type === 'node' ? 'Construction & Decor' : 'Items';
+}
+
+export const BETTERCRAFT_ITEMS: BetterCraftItem[] = catalogItems.map(item => {
+  const id = item.name;
+  const textureName = item.inventory_image || item.tiles[0] || `${id.replace(':', '_')}.png`;
+  const type: BetterCraftItem['type'] = item.type;
+  return {
+    id,
+    name: item.description,
+    type,
+    mod: id.split(':')[0] || 'unknown',
+    texture: null,
+    textureName,
+    color: '#78716c',
+    category: categoryFor(item),
+    drawtype: item.drawtype || undefined,
+    mesh: item.mesh || undefined,
+    textureAssets: [],
+    modelAssets: []
+  };
+});
 
 // Map to MinetestNodeMetadata for the palette and 3D Viewport
 export const BETTERCRAFT_PALETTE_NODES: MinetestNodeMetadata[] = BETTERCRAFT_ITEMS.map(item => {

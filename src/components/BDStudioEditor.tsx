@@ -93,6 +93,12 @@ interface BDStudioEditorProps {
   pushStateToHistory: (currentEntities: BlockFrameEntity[], actionLabel: string) => void;
 }
 
+interface ImportedAsset {
+  name: string;
+  kind: 'texture' | 'model';
+  url?: string;
+}
+
 export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
   entities,
   setEntities,
@@ -153,6 +159,25 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
   const [gizmoMode, setGizmoMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
   const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(true);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const [importedAssets, setImportedAssets] = useState<ImportedAsset[]>([]);
+
+  const handleImportAssets = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []) as File[];
+    const imported = files.map(file => {
+      const isModel = /\.(obj|b3d|glb|gltf|blend|bbmodel|mtl|x)$/i.test(file.name);
+      return {
+        name: file.name,
+        kind: isModel ? 'model' as const : 'texture' as const,
+        url: isModel ? undefined : URL.createObjectURL(file)
+      };
+    });
+    setImportedAssets(previous => {
+      const byName = new Map([...previous, ...imported].map(asset => [asset.name, asset]));
+      return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+    });
+    showToast(`${imported.length} asset(s) importado(s)`, 'success');
+    event.target.value = '';
+  };
 
   // Handle Drag and Drop of items/blocks from the Left Library directly into the 3D scene
   const handleDropEntity = (nodeId: string, pos: { x: number; y: number; z: number }) => {
@@ -385,19 +410,33 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
           {sidebarLeftTab === 'texturas' && (
             <div className="flex-1 flex flex-col space-y-3">
               <div className="text-[11px] text-slate-400">
-                Insira o link de uma textura PNG para mapear a nós customizados:
+                Importe a pasta gerada com <code>--gentexture</code> ou selecione arquivos de <code>textures/</code> e <code>models/</code>.
               </div>
-              <input
-                type="text"
-                placeholder="URL da textura (PNG)..."
-                className="w-full bg-[#151620] border border-slate-800 p-2 rounded text-xs text-white"
-              />
-              <button
-                onClick={() => showToast('Mapeamento de textura registrado!', 'success')}
-                className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 rounded cursor-pointer"
-              >
-                Aplicar Textura
-              </button>
+              <label className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded cursor-pointer text-center text-xs">
+                Importar textures/models
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.obj,.b3d,.glb,.gltf,.blend,.bbmodel,.mtl,.x"
+                  onChange={handleImportAssets}
+                  className="hidden"
+                />
+              </label>
+              <div className="text-[10px] text-slate-500">
+                {importedAssets.length} arquivo(s) importado(s)
+              </div>
+              <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[390px] pr-1">
+                {importedAssets.map(asset => (
+                  <div key={`${asset.kind}-${asset.name}`} className="rounded-lg border border-slate-800 bg-[#151620] p-2">
+                    {asset.url ? (
+                      <img src={asset.url} alt={asset.name} className="w-full h-16 object-contain [image-rendering:pixelated] bg-[#0c0d16] rounded" />
+                    ) : (
+                      <div className="w-full h-16 flex items-center justify-center bg-[#0c0d16] rounded text-cyan-400 text-[10px] font-mono uppercase">{asset.kind}</div>
+                    )}
+                    <div className="mt-1 text-[9px] text-slate-300 truncate" title={asset.name}>{asset.name}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
