@@ -13,4 +13,4 @@ python3 tools/export_catalog.py \
 
 O site importa diretamente o array JSON em `src/bettercraftRegistry.ts`. Cada posição possui `type` (`node` ou `item`), `name`, `description`, `drawtype`, `mesh`, `inventory_image`, `wield_image`, `tiles`, `paramtype` e `paramtype2`.
 
-Na aba **TEXTURAS**, o botão **Importar textures/models** aceita múltiplos arquivos de imagem e modelos (`.obj`, `.b3d`, `.glb`, `.gltf`, `.blend`, `.bbmodel`, `.mtl` e `.x`). Os modelos são listados como assets importados e as imagens são exibidas em miniaturas.
+Na aba **TEXTURAS**, o site reconhece as duas saídas do exportador: o formato plano de `--gentexture`, com todos os arquivos diretamente em `textures/` e `models/`, e o formato de `--gentexture-separated`, com arquivos em `textures/<mod>/` e `models/<mod>/`. Use **Importar arquivos** para selecionar vários assets ou **Importar pasta textures/models** para selecionar a pasta gerada inteira. O caminho relativo identifica automaticamente se o arquivo é textura ou modelo e, quando aplicável, exibe o mod de origem.

@@ -97,6 +97,8 @@ interface ImportedAsset {
   name: string;
   kind: 'texture' | 'model';
   url?: string;
+  relativePath: string;
+  mod?: string;
 }
 
 export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
@@ -164,16 +166,30 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
   const handleImportAssets = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []) as File[];
     const imported = files.map(file => {
-      const isModel = /\.(obj|b3d|glb|gltf|blend|bbmodel|mtl|x)$/i.test(file.name);
+      const relativePath = file.webkitRelativePath || file.name;
+      const pathParts = relativePath.split('/').filter(Boolean);
+      const modelsIndex = pathParts.indexOf('models');
+      const texturesIndex = pathParts.indexOf('textures');
+      const isModel = modelsIndex >= 0
+        ? true
+        : texturesIndex >= 0
+          ? false
+          : /\.(obj|b3d|glb|gltf|blend|bbmodel|mtl|x)$/i.test(file.name);
+      const assetIndex = isModel ? modelsIndex : texturesIndex;
+      const mod = assetIndex > 0 && pathParts.length > assetIndex + 2
+        ? pathParts[assetIndex + 1]
+        : undefined;
       return {
         name: file.name,
         kind: isModel ? 'model' as const : 'texture' as const,
+        relativePath,
+        mod,
         url: isModel ? undefined : URL.createObjectURL(file)
       };
     });
     setImportedAssets(previous => {
-      const byName = new Map([...previous, ...imported].map(asset => [asset.name, asset]));
-      return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const byPath = new Map([...previous, ...imported].map(asset => [asset.relativePath, asset]));
+      return Array.from(byPath.values()).sort((a, b) => a.relativePath.localeCompare(b.relativePath));
     });
     showToast(`${imported.length} asset(s) importado(s)`, 'success');
     event.target.value = '';
@@ -413,7 +429,7 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                 Importe a pasta gerada com <code>--gentexture</code> ou selecione arquivos de <code>textures/</code> e <code>models/</code>.
               </div>
               <label className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded cursor-pointer text-center text-xs">
-                Importar textures/models
+                Importar arquivos
                 <input
                   type="file"
                   multiple
@@ -422,8 +438,19 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                   className="hidden"
                 />
               </label>
+              <label className="w-full bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold py-2 rounded cursor-pointer text-center text-xs">
+                Importar pasta textures/models
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.obj,.b3d,.glb,.gltf,.blend,.bbmodel,.mtl,.x"
+                  onChange={handleImportAssets}
+                  className="hidden"
+                  {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
+                />
+              </label>
               <div className="text-[10px] text-slate-500">
-                {importedAssets.length} arquivo(s) importado(s)
+                {importedAssets.length} arquivo(s) reconhecido(s): {importedAssets.filter(asset => asset.kind === 'texture').length} texturas e {importedAssets.filter(asset => asset.kind === 'model').length} modelos
               </div>
               <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[390px] pr-1">
                 {importedAssets.map(asset => (
@@ -433,7 +460,7 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                     ) : (
                       <div className="w-full h-16 flex items-center justify-center bg-[#0c0d16] rounded text-cyan-400 text-[10px] font-mono uppercase">{asset.kind}</div>
                     )}
-                    <div className="mt-1 text-[9px] text-slate-300 truncate" title={asset.name}>{asset.name}</div>
+                    <div className="mt-1 text-[9px] text-slate-300 truncate" title={asset.relativePath}>{asset.mod ? `${asset.mod}/` : ''}{asset.name}</div>
                   </div>
                 ))}
               </div>
