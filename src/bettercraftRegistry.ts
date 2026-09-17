@@ -1,13 +1,6 @@
 import catalogData from './data/bettercraftCatalog.json';
 import { MinetestNodeMetadata } from './types';
 
-interface CatalogAsset {
-  name: string;
-  kind: 'texture' | 'model';
-  path: string;
-  url?: string;
-}
-
 interface CatalogItem {
   type: 'node' | 'item';
   name: string;
@@ -31,10 +24,7 @@ export interface BetterCraftItem {
   color: string;
   category: string;
   drawtype?: string;
-  mesh?: string;
   drop?: string;
-  textureAssets: CatalogAsset[];
-  modelAssets: CatalogAsset[];
 }
 
 const catalogItems: CatalogItem[] = Array.isArray(catalogData)
@@ -51,7 +41,9 @@ function categoryFor(item: CatalogItem): string {
 
 export const BETTERCRAFT_ITEMS: BetterCraftItem[] = catalogItems.map(item => {
   const id = item.name;
-  const textureName = item.inventory_image || item.tiles[0] || `${id.replace(':', '_')}.png`;
+  const textureName = item.type === 'item'
+    ? (item.inventory_image || `${id.replace(':', '_')}.png`)
+    : (item.tiles[0] || `${id.replace(':', '_')}.png`);
   const type: BetterCraftItem['type'] = item.type;
   return {
     id,
@@ -63,9 +55,7 @@ export const BETTERCRAFT_ITEMS: BetterCraftItem[] = catalogItems.map(item => {
     color: '#78716c',
     category: categoryFor(item),
     drawtype: item.drawtype || undefined,
-    mesh: item.mesh || undefined,
-    textureAssets: [],
-    modelAssets: []
+    drop: undefined
   };
 });
 

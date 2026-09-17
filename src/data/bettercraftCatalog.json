@@ -138,6 +138,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mcl_anvils_anvil_top_damaged_2.png",
       "mcl_anvils_anvil_base.png",
       "mcl_anvils_anvil_side.png"
     ],
@@ -153,6 +154,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mcl_anvils_anvil_top_damaged_2.png",
       "mcl_anvils_anvil_base.png",
       "mcl_anvils_anvil_side.png"
     ],
@@ -383,6 +385,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mcl_barrels_barrel_top.png",
       "mcl_barrels_barrel_bottom.png",
       "mcl_barrels_barrel_side.png"
     ],
@@ -427,7 +430,9 @@
     "mesh": null,
     "inventory_image": null,
     "wield_image": null,
-    "tiles": [],
+    "tiles": [
+      "blank.png"
+    ],
     "paramtype": null,
     "paramtype2": "color"
   },
@@ -1185,8 +1190,8 @@
     "inventory_image": "mcl_cauldrons_cauldron.png",
     "wield_image": "mcl_cauldrons_cauldron.png",
     "tiles": [
-      "mcl_cauldrons_cauldron_top.png",
-      "mcl_cauldrons_cauldron_bottom.png",
+      "mcl_cauldrons_cauldron_inner.png",
+      "mcl_cauldrons_cauldron_inner.png",
       "mcl_cauldrons_cauldron_side.png"
     ],
     "paramtype": "light",
@@ -1399,7 +1404,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_composter_top.png",
+      "mcl_composter_bottom.png",
       "mcl_composter_bottom.png",
       "mcl_composter_side.png"
     ],
@@ -1415,7 +1420,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_composter_top.png",
+      "mcl_composter_ready.png",
       "mcl_composter_bottom.png",
       "mcl_composter_side.png"
     ],
@@ -1527,7 +1532,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_copper_ore.png"
+      "default_stone.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -1837,7 +1842,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_core_crying_obsidian.png"
+      "default_obsidian.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -2222,8 +2227,10 @@
     "drawtype": "flowingliquid",
     "mesh": null,
     "inventory_image": null,
-    "wield_image": null,
-    "tiles": [],
+    "wield_image": "default_lava_flowing_animated.png",
+    "tiles": [
+      "default_lava_flowing_animated.png"
+    ],
     "paramtype": "light",
     "paramtype2": "flowingliquid"
   },
@@ -2346,8 +2353,8 @@
     "description": "mcl_core:realm_barrier",
     "drawtype": "airlike",
     "mesh": null,
-    "inventory_image": null,
-    "wield_image": null,
+    "inventory_image": "mcl_core_barrier.png",
+    "wield_image": "mcl_core_barrier.png",
     "tiles": [
       "blank.png"
     ],
@@ -2801,8 +2808,10 @@
     "drawtype": "flowingliquid",
     "mesh": null,
     "inventory_image": null,
-    "wield_image": null,
-    "tiles": [],
+    "wield_image": "default_water_flowing_animated.png",
+    "tiles": [
+      "default_water_flowing_animated.png"
+    ],
     "paramtype": "light",
     "paramtype2": "flowingliquid"
   },
@@ -2877,10 +2886,10 @@
     "tiles": [
       "crimson_nylium.png",
       "mcl_nether_netherrack.png",
-      "crimson_nylium_side.png",
-      "crimson_nylium_side.png",
-      "crimson_nylium_side.png",
-      "crimson_nylium_side.png"
+      "mcl_nether_netherrack.png",
+      "mcl_nether_netherrack.png",
+      "mcl_nether_netherrack.png",
+      "mcl_nether_netherrack.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -2952,10 +2961,10 @@
     "tiles": [
       "warped_nylium.png",
       "mcl_nether_netherrack.png",
-      "warped_nylium_side.png",
-      "warped_nylium_side.png",
-      "warped_nylium_side.png",
-      "warped_nylium_side.png"
+      "mcl_nether_netherrack.png",
+      "mcl_nether_netherrack.png",
+      "mcl_nether_netherrack.png",
+      "mcl_nether_netherrack.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -3242,7 +3251,8 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "pointed_dripstone_"
+      "pointed_dripstone_",
+      ".png"
     ],
     "paramtype": "light",
     "paramtype2": null
@@ -3512,8 +3522,8 @@
     "description": "mcl_experience:bottle",
     "drawtype": null,
     "mesh": null,
-    "inventory_image": null,
-    "wield_image": null,
+    "inventory_image": "mcl_experience_bottle.png",
+    "wield_image": "mcl_experience_bottle.png",
     "tiles": [],
     "paramtype": null,
     "paramtype2": null
@@ -4062,7 +4072,7 @@
     "drawtype": null,
     "mesh": null,
     "inventory_image": "mcl_fishing_fishing_rod.png",
-    "wield_image": null,
+    "wield_image": "mcl_fishing_fishing_rod.png",
     "tiles": [],
     "paramtype": null,
     "paramtype2": null
@@ -4183,8 +4193,8 @@
     "description": "mcl_flowers:leaf_litter_1",
     "drawtype": null,
     "mesh": "mcl_flowers_leaf_litter_1.obj",
-    "inventory_image": null,
-    "wield_image": null,
+    "inventory_image": "mcl_flowers_leaf_litter.png",
+    "wield_image": "mcl_flowers_leaf_litter.png",
     "tiles": [],
     "paramtype": null,
     "paramtype2": null
@@ -4212,6 +4222,7 @@
     "inventory_image": "flowers_waterlily.png",
     "wield_image": "flowers_waterlily.png",
     "tiles": [
+      "flowers_waterlily.png",
       "flowers_waterlily.png"
     ],
     "paramtype": "light",
@@ -4297,7 +4308,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_hoppers_hopper_top.png",
+      "mcl_hoppers_hopper_inside.png",
       "mcl_hoppers_hopper_outside.png",
       "mcl_hoppers_hopper_outside.png",
       "mcl_hoppers_hopper_outside.png",
@@ -4316,7 +4327,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_hoppers_hopper_top.png",
+      "mcl_hoppers_hopper_inside.png",
       "mcl_hoppers_hopper_outside.png",
       "mcl_hoppers_hopper_outside.png",
       "mcl_hoppers_hopper_outside.png",
@@ -4559,7 +4570,9 @@
     "mesh": null,
     "inventory_image": null,
     "wield_image": null,
-    "tiles": [],
+    "tiles": [
+      "mcl_lightning_rods_rod_exposed.png"
+    ],
     "paramtype": null,
     "paramtype2": null
   },
@@ -4585,7 +4598,9 @@
     "mesh": null,
     "inventory_image": null,
     "wield_image": null,
-    "tiles": [],
+    "tiles": [
+      "mcl_lightning_rods_rod_oxidized.png"
+    ],
     "paramtype": null,
     "paramtype2": null
   },
@@ -4625,7 +4640,9 @@
     "mesh": null,
     "inventory_image": null,
     "wield_image": null,
-    "tiles": [],
+    "tiles": [
+      "mcl_lightning_rods_rod_weathered.png"
+    ],
     "paramtype": null,
     "paramtype2": null
   },
@@ -4865,9 +4882,9 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_mangrove_roots_top.png",
-      "mcl_mangrove_roots_side.png",
-      "mcl_mangrove_roots_side.png"
+      "mcl_mud.png",
+      "mcl_mud.png",
+      "mcl_mud.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -4923,9 +4940,9 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_mangrove_roots_top.png",
-      "mcl_mangrove_roots_side.png",
-      "mcl_mangrove_roots_side.png"
+      "mcl_mud.png",
+      "mcl_mud.png",
+      "mcl_mud.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -4939,9 +4956,9 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
-      "mcl_mangrove_roots_top.png",
-      "mcl_mangrove_roots_side.png",
-      "mcl_mangrove_roots_side.png"
+      "mcl_mud.png",
+      "mcl_mud.png",
+      "mcl_mud.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -5085,7 +5102,7 @@
     "drawtype": null,
     "mesh": null,
     "inventory_image": "mcl_mobitems_carrot_on_a_stick.png",
-    "wield_image": null,
+    "wield_image": "mcl_mobitems_carrot_on_a_stick.png",
     "tiles": [],
     "paramtype": null,
     "paramtype2": null
@@ -5226,6 +5243,7 @@
     "inventory_image": "mcl_mobitems_frogspawn.png",
     "wield_image": "mcl_mobitems_frogspawn.png",
     "tiles": [
+      "mcl_mobitems_frogspawn.png",
       "mcl_mobitems_frogspawn.png"
     ],
     "paramtype": "light",
@@ -5588,7 +5606,7 @@
     "drawtype": null,
     "mesh": null,
     "inventory_image": "mcl_mobitems_warped_fungus_on_a_stick.png",
-    "wield_image": null,
+    "wield_image": "mcl_mobitems_warped_fungus_on_a_stick.png",
     "tiles": [],
     "paramtype": null,
     "paramtype2": null
@@ -5647,7 +5665,7 @@
     "description": "Evaluate node properties",
     "drawtype": null,
     "mesh": null,
-    "inventory_image": null,
+    "inventory_image": "default_stick.png",
     "wield_image": null,
     "tiles": [],
     "paramtype": null,
@@ -6166,6 +6184,8 @@
     "tiles": [
       "mcl_observers_observer_back.png",
       "mcl_observers_observer_front.png",
+      "mcl_observers_observer_side.png",
+      "mcl_observers_observer_side.png",
       "mcl_observers_observer_top.png",
       "mcl_observers_observer_top.png"
     ],
@@ -6183,6 +6203,8 @@
     "tiles": [
       "mcl_observers_observer_back_lit.png",
       "mcl_observers_observer_front.png",
+      "mcl_observers_observer_side.png",
+      "mcl_observers_observer_side.png",
       "mcl_observers_observer_top.png",
       "mcl_observers_observer_top.png"
     ],
@@ -6198,6 +6220,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mcl_observers_observer_top.png",
       "default_furnace_bottom.png",
       "mcl_observers_observer_side.png",
       "mcl_observers_observer_side.png",
@@ -6216,6 +6239,7 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mcl_observers_observer_top.png",
       "default_furnace_bottom.png",
       "mcl_observers_observer_side.png",
       "mcl_observers_observer_side.png",
@@ -6235,7 +6259,11 @@
     "wield_image": null,
     "tiles": [
       "mcl_observers_observer_front.png",
-      "mcl_observers_observer_back.png"
+      "mcl_observers_observer_back.png",
+      "mcl_observers_observer_side.png",
+      "mcl_observers_observer_side.png",
+      "mcl_observers_observer_top.png",
+      "mcl_observers_observer_top.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -6250,7 +6278,11 @@
     "wield_image": null,
     "tiles": [
       "mcl_observers_observer_front.png",
-      "mcl_observers_observer_back_lit.png"
+      "mcl_observers_observer_back_lit.png",
+      "mcl_observers_observer_side.png",
+      "mcl_observers_observer_side.png",
+      "mcl_observers_observer_top.png",
+      "mcl_observers_observer_top.png"
     ],
     "paramtype": null,
     "paramtype2": null
@@ -6626,6 +6658,9 @@
     "wield_image": null,
     "tiles": [
       "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
       "mesecons_piston_back.png",
       "mesecons_piston_pusher_front.png"
     ],
@@ -6641,6 +6676,9 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
       "mesecons_piston_bottom.png",
       "mesecons_piston_back.png",
       "mesecons_piston_on_front.png"
@@ -6696,6 +6734,9 @@
     "wield_image": null,
     "tiles": [
       "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
       "mesecons_piston_back.png",
       "mesecons_piston_pusher_front_sticky.png"
     ],
@@ -6711,6 +6752,9 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
+      "mesecons_piston_bottom.png",
       "mesecons_piston_bottom.png",
       "mesecons_piston_back.png",
       "mesecons_piston_on_front.png"
@@ -6743,8 +6787,9 @@
     "inventory_image": null,
     "wield_image": null,
     "tiles": [
+      "mcl_portals_endframe_top.png",
       "mcl_portals_endframe_bottom.png",
-      "mcl_portals_endframe_side.png"
+      "mcl_portals_endframe_eye.png"
     ],
     "paramtype": "light",
     "paramtype2": "facedir"
@@ -7118,7 +7163,7 @@
     "description": "mcl_shields:shield_",
     "drawtype": null,
     "mesh": null,
-    "inventory_image": null,
+    "inventory_image": "mcl_shield_48.png",
     "wield_image": "mcl_shield_48.png",
     "tiles": [],
     "paramtype": null,
@@ -7468,7 +7513,7 @@
     "drawtype": null,
     "mesh": null,
     "inventory_image": "mcl_tridents_trident_item.png",
-    "wield_image": null,
+    "wield_image": "blank.png",
     "tiles": [],
     "paramtype": null,
     "paramtype2": null
@@ -7571,7 +7616,9 @@
     "mesh": null,
     "inventory_image": null,
     "wield_image": null,
-    "tiles": [],
+    "tiles": [
+      "default_river_water_flowing_animated.png"
+    ],
     "paramtype": null,
     "paramtype2": null
   },
@@ -7837,7 +7884,7 @@
     "description": "postick:postick",
     "drawtype": null,
     "mesh": null,
-    "inventory_image": null,
+    "inventory_image": "default_stick.png",
     "wield_image": null,
     "tiles": [],
     "paramtype": null,
@@ -7850,7 +7897,7 @@
     "drawtype": null,
     "mesh": null,
     "inventory_image": "screwdriver.png",
-    "wield_image": null,
+    "wield_image": "screwdriver.png",
     "tiles": [],
     "paramtype": null,
     "paramtype2": null
