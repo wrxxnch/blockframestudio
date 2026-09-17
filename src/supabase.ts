@@ -257,11 +257,16 @@ CREATE TABLE IF NOT EXISTS public.admin_users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Proprietario le admins" ON public.admin_users FOR SELECT USING (
-  lower(auth.jwt() ->> 'email') = 'jeanpierreowner@gmail.com'
+CREATE OR REPLACE FUNCTION public.is_blockframe_admin(email_to_check TEXT)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT lower(email_to_check) = 'jeanpierreowner@gmail.com'
+    OR EXISTS (SELECT 1 FROM public.admin_users WHERE lower(email) = lower(email_to_check));
+$$;
+CREATE POLICY "Admins leem admins" ON public.admin_users FOR SELECT USING (
+  public.is_blockframe_admin(auth.jwt() ->> 'email')
 );
-CREATE POLICY "Somente proprietario gerencia admins" ON public.admin_users FOR ALL USING (
-  lower(auth.jwt() ->> 'email') = 'jeanpierreowner@gmail.com'
+CREATE POLICY "Admins gerenciam admins" ON public.admin_users FOR ALL USING (
+  public.is_blockframe_admin(auth.jwt() ->> 'email')
 );
 
 -- 1. Criação da Tabela de Projetos
