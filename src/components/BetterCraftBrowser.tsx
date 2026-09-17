@@ -17,7 +17,7 @@ import {
   Leaf,
   Hammer
 } from 'lucide-react';
-import { BETTERCRAFT_ITEMS, BetterCraftItem, generateLuaRegistrationCode } from '../bettercraftRegistry';
+import { BETTERCRAFT_ITEMS, BetterCraftItem, generateLuaRegistrationCode, updateBetterCraftItem, removeBetterCraftItem } from '../bettercraftRegistry';
 import { resolveNodeTextureUrl } from '../textureUtils';
 
 interface BetterCraftBrowserProps {
@@ -25,6 +25,7 @@ interface BetterCraftBrowserProps {
   onClose: () => void;
   onSelectBrush: (item: BetterCraftItem) => void;
   onInsertEntity: (item: BetterCraftItem) => void;
+  isAdmin?: boolean;
 }
 
 const CATEGORIES = [
@@ -45,12 +46,14 @@ export default function BetterCraftBrowser({
   onClose,
   onSelectBrush,
   onInsertEntity,
+  isAdmin = false,
 }: BetterCraftBrowserProps) {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedType, setSelectedType] = useState('All');
   const [inspectItem, setInspectItem] = useState<BetterCraftItem | null>(null);
   const [copiedLua, setCopiedLua] = useState(false);
+  const [, refreshCatalog] = useState(0);
 
   const filteredItems = useMemo(() => {
     const s = search.toLowerCase().trim();
@@ -79,6 +82,21 @@ export default function BetterCraftBrowser({
     navigator.clipboard.writeText(lua);
     setCopiedLua(true);
     setTimeout(() => setCopiedLua(false), 2000);
+  };
+
+  const handleEditCatalogItem = (item: BetterCraftItem) => {
+    const nextType = window.prompt('Tipo do registro: node ou item', item.type === 'node' ? 'node' : 'item')?.trim().toLowerCase();
+    if (nextType !== 'node' && nextType !== 'item') return;
+    const nextTexture = window.prompt(nextType === 'item' ? 'Imagem inventory_image' : 'Primeiro tile', item.textureName)?.trim();
+    if (!nextTexture) return;
+    updateBetterCraftItem(item.id, { type: nextType, textureName: nextTexture });
+    refreshCatalog(value => value + 1);
+  };
+
+  const handleRemoveCatalogItem = (item: BetterCraftItem) => {
+    if (!window.confirm(`Remover ${item.id} do catálogo?`)) return;
+    removeBetterCraftItem(item.id);
+    refreshCatalog(value => value + 1);
   };
 
   if (!isOpen) return null;
@@ -274,6 +292,12 @@ export default function BetterCraftBrowser({
                     >
                       <Code2 className="w-3.5 h-3.5" />
                     </button>
+                    {isAdmin && (
+                      <>
+                        <button onClick={() => handleEditCatalogItem(item)} className="p-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-[10px]" title="Editar tipo e textura">Editar</button>
+                        <button onClick={() => handleRemoveCatalogItem(item)} className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-lg text-[10px]" title="Remover registro inválido">Remover</button>
+                      </>
+                    )}
                   </div>
                 </div>
               );

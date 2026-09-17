@@ -13,6 +13,55 @@ export const supabase = isSupabaseConfigured
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
+export const OWNER_EMAIL = 'jeanpierreowner@gmail.com';
+
+export async function signInWithGoogle(): Promise<void> {
+  if (!supabase) throw new Error('Supabase não configurado');
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin }
+  });
+  if (error) throw error;
+}
+
+export async function signOutGoogle(): Promise<void> {
+  if (supabase) await supabase.auth.signOut();
+}
+
+export async function listAdminEmails(): Promise<string[]> {
+  if (!supabase) {
+    const local = JSON.parse(localStorage.getItem('blockframe_admin_emails') || '[]');
+    return Array.from(new Set([OWNER_EMAIL, ...local]));
+  }
+  const { data, error } = await supabase.from('admin_users').select('email').order('email');
+  if (error) throw error;
+  return Array.from(new Set([OWNER_EMAIL, ...(data || []).map(row => row.email as string)]));
+}
+
+export async function addAdminEmail(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized || normalized === OWNER_EMAIL) return;
+  if (!supabase) {
+    const current = JSON.parse(localStorage.getItem('blockframe_admin_emails') || '[]') as string[];
+    localStorage.setItem('blockframe_admin_emails', JSON.stringify(Array.from(new Set([...current, normalized]))));
+    return;
+  }
+  const { error } = await supabase.from('admin_users').upsert({ email: normalized }, { onConflict: 'email' });
+  if (error) throw error;
+}
+
+export async function removeAdminEmail(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  if (normalized === OWNER_EMAIL) throw new Error('O proprietário não pode ser removido');
+  if (!supabase) {
+    const current = JSON.parse(localStorage.getItem('blockframe_admin_emails') || '[]') as string[];
+    localStorage.setItem('blockframe_admin_emails', JSON.stringify(current.filter(item => item !== normalized)));
+    return;
+  }
+  const { error } = await supabase.from('admin_users').delete().eq('email', normalized);
+  if (error) throw error;
+}
+
 // Local storage keys
 const LOCAL_PROJECTS_KEY = 'blockframe_local_projects';
 
@@ -202,6 +251,19 @@ export async function deleteProject(projectId: string): Promise<boolean> {
  * SQL DDL Schema for reference and onboarding
  */
 export const SUPABASE_SQL_SCHEMA = `
+-- 0. Administradores: o proprietário é sempre jeanpierreowner@gmail.com
+CREATE TABLE IF NOT EXISTS public.admin_users (
+    email TEXT PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Proprietario le admins" ON public.admin_users FOR SELECT USING (
+  lower(auth.jwt() ->> 'email') = 'jeanpierreowner@gmail.com'
+);
+CREATE POLICY "Somente proprietario gerencia admins" ON public.admin_users FOR ALL USING (
+  lower(auth.jwt() ->> 'email') = 'jeanpierreowner@gmail.com'
+);
+
 -- 1. Criação da Tabela de Projetos
 CREATE TABLE IF NOT EXISTS public.projects (
     id TEXT PRIMARY KEY,

@@ -424,6 +424,7 @@ export default function VoxelViewport({
     const handleMouseClick = (event: MouseEvent) => {
       if (isGizmoDraggingRef.current) return;
       if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
       if (!containerRef.current || !rendererRef.current) return;
 
       const rect = rendererRef.current.domElement.getBoundingClientRect();
@@ -471,8 +472,11 @@ export default function VoxelViewport({
       rendererRef.current.setSize(w, h);
     };
 
+    const handleContextMenu = (event: MouseEvent) => event.preventDefault();
+
     renderer.domElement.addEventListener('mousemove', handleMouseMove);
     renderer.domElement.addEventListener('pointerup', handleMouseClick);
+    renderer.domElement.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('resize', handleResize);
 
     // 9. Animation loop
@@ -494,6 +498,7 @@ export default function VoxelViewport({
       if (rendererRef.current) {
         rendererRef.current.domElement.removeEventListener('mousemove', handleMouseMove);
         rendererRef.current.domElement.removeEventListener('pointerup', handleMouseClick);
+        rendererRef.current.domElement.removeEventListener('contextmenu', handleContextMenu);
       }
       window.removeEventListener('resize', handleResize);
       transformControls.dispose();

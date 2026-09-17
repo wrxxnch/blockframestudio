@@ -31,6 +31,12 @@ const catalogItems: CatalogItem[] = Array.isArray(catalogData)
   ? catalogData as CatalogItem[]
   : (catalogData as { items: CatalogItem[] }).items;
 
+const CATALOG_OVERRIDES_KEY = 'blockframe_bettercraft_catalog_overrides';
+const readCatalogOverrides = (): Record<string, Partial<BetterCraftItem> & { removed?: boolean }> => {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(localStorage.getItem(CATALOG_OVERRIDES_KEY) || '{}'); } catch { return {}; }
+};
+
 function categoryFor(item: CatalogItem): string {
   if (item.drawtype === 'plantlike' || item.name.includes('sapling') || item.name.includes('flower')) return 'Vegetation & Food';
   if (item.name.includes('ore') || item.name.includes('stone') || item.name.includes('block') || item.name.includes('brick')) return 'Blocks & Ores';
@@ -57,7 +63,31 @@ export const BETTERCRAFT_ITEMS: BetterCraftItem[] = catalogItems.map(item => {
     drawtype: item.drawtype || undefined,
     drop: undefined
   };
-});
+}).filter(item => !readCatalogOverrides()[item.id]?.removed).map(item => ({
+  ...item,
+  ...(readCatalogOverrides()[item.id] || {})
+}));
+
+export function updateBetterCraftItem(id: string, changes: { type?: 'node' | 'item'; textureName?: string }): void {
+  const item = BETTERCRAFT_ITEMS.find(entry => entry.id === id);
+  if (!item) return;
+  Object.assign(item, changes);
+  const overrides = readCatalogOverrides();
+  overrides[id] = { ...overrides[id], ...changes };
+  localStorage.setItem(CATALOG_OVERRIDES_KEY, JSON.stringify(overrides));
+}
+
+export function removeBetterCraftItem(id: string): void {
+  const index = BETTERCRAFT_ITEMS.findIndex(entry => entry.id === id);
+  if (index >= 0) BETTERCRAFT_ITEMS.splice(index, 1);
+  const paletteIndex = BETTERCRAFT_PALETTE_NODES.findIndex(entry => entry.id === id);
+  if (paletteIndex >= 0) BETTERCRAFT_PALETTE_NODES.splice(paletteIndex, 1);
+  itemsById.delete(id);
+  if (id.includes(':')) itemsById.delete(id.split(':')[1]);
+  const overrides = readCatalogOverrides();
+  overrides[id] = { ...overrides[id], removed: true };
+  localStorage.setItem(CATALOG_OVERRIDES_KEY, JSON.stringify(overrides));
+}
 
 // Map to MinetestNodeMetadata for the palette and 3D Viewport
 export const BETTERCRAFT_PALETTE_NODES: MinetestNodeMetadata[] = BETTERCRAFT_ITEMS.map(item => {

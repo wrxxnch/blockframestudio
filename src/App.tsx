@@ -69,7 +69,14 @@ import {
   downloadProject,
   deleteProject,
   isSupabaseConfigured,
-  SUPABASE_SQL_SCHEMA
+  SUPABASE_SQL_SCHEMA,
+  supabase,
+  OWNER_EMAIL,
+  signInWithGoogle,
+  signOutGoogle,
+  listAdminEmails,
+  addAdminEmail,
+  removeAdminEmail
 } from './supabase';
 
 import VoxelViewport from './components/VoxelViewport';
@@ -165,6 +172,12 @@ export default function App() {
   const [publishAuthor, setPublishAuthor] = useState('Anonimo');
   const [publishTags, setPublishTags] = useState('Decoracao, Sci-Fi');
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [authUser, setAuthUser] = useState<{ email?: string; name?: string } | null>(null);
+  const [adminEmails, setAdminEmails] = useState<string[]>([OWNER_EMAIL]);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+
+  const isAdmin = !!authUser?.email && adminEmails.includes(authUser.email.toLowerCase());
 
   // Modals & Logs
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -213,6 +226,41 @@ export default function App() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    listAdminEmails().then(setAdminEmails).catch(() => setAdminEmails([OWNER_EMAIL]));
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      setAuthUser(user ? { email: user.email, name: user.user_metadata?.full_name } : null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user;
+      setAuthUser(user ? { email: user.email, name: user.user_metadata?.full_name } : null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const handleAddAdmin = async () => {
+    try {
+      await addAdminEmail(newAdminEmail);
+      setAdminEmails(await listAdminEmails());
+      setNewAdminEmail('');
+      showToast('Administrador adicionado');
+    } catch (error) {
+      showToast('Não foi possível adicionar o administrador', 'error');
+    }
+  };
+
+  const handleRemoveAdmin = async (email: string) => {
+    try {
+      await removeAdminEmail(email);
+      setAdminEmails(await listAdminEmails());
+      showToast('Administrador removido');
+    } catch (error) {
+      showToast('O proprietário não pode ser removido', 'error');
+    }
+  };
 
   const loadCommunityProjects = async () => {
     setLoadingProjects(true);
@@ -1405,6 +1453,32 @@ export default function App() {
               <span>Supabase</span>
             </button>
           </div>
+          <div className="flex items-center gap-1">
+            {isAdmin && (
+              <button
+                onClick={() => setShowAdminPanel(true)}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/40 hover:bg-amber-500/20"
+              >
+                Admin
+              </button>
+            )}
+            {authUser ? (
+              <button
+                onClick={() => signOutGoogle()}
+                className="px-2.5 py-1.5 rounded-lg text-xs text-slate-300 bg-slate-800 hover:bg-slate-700"
+                title={authUser.email}
+              >
+                <User className="inline w-3.5 h-3.5 mr-1" /> Sair
+              </button>
+            ) : (
+              <button
+                onClick={() => signInWithGoogle().catch(() => showToast('Configure o login Google no Supabase', 'error'))}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/40 hover:bg-cyan-500/20"
+              >
+                Entrar com Google
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1415,6 +1489,34 @@ export default function App() {
           {systemNotification.type === 'error' && <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />}
           {systemNotification.type === 'info' && <Info className="w-5 h-5 text-cyan-400 shrink-0" />}
           <div className="flex-1 text-slate-200">{systemNotification.text}</div>
+        </div>
+      )}
+
+      {showAdminPanel && isAdmin && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-[#121218] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 p-4">
+              <div>
+                <h2 className="font-bold text-white">Administração</h2>
+                <p className="text-xs text-slate-500">Somente login Google. Proprietário: {OWNER_EMAIL}</p>
+              </div>
+              <button onClick={() => setShowAdminPanel(false)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="flex gap-2">
+                <input value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="email@gmail.com" type="email" className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+                <button onClick={handleAddAdmin} className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white">Adicionar</button>
+              </div>
+              <div className="space-y-2">
+                {adminEmails.map(email => (
+                  <div key={email} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-2 text-sm">
+                    <span className="text-slate-200">{email}</span>
+                    {email !== OWNER_EMAIL && <button onClick={() => handleRemoveAdmin(email)} className="text-rose-400 hover:text-rose-300">Remover</button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1794,6 +1896,7 @@ export default function App() {
       <BetterCraftBrowser
         isOpen={isBetterCraftBrowserOpen}
         onClose={() => setIsBetterCraftBrowserOpen(false)}
+        isAdmin={isAdmin}
         onSelectBrush={handleSelectBetterCraftBrush}
         onInsertEntity={handleInsertBetterCraftEntity}
       />
