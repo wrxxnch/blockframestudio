@@ -750,7 +750,7 @@ export default function App() {
     const effectiveNodeMode = customConfig !== undefined ? customConfig.isNode : !isWieldItem;
     const defaultScale = customConfig?.scale !== undefined
       ? customConfig.scale
-      : (!effectiveNodeMode ? 0.3 : 1.0);
+      : 1.0;
 
     setBrushArgs(prev => ({
       ...prev,
@@ -786,7 +786,7 @@ export default function App() {
     setBrushNode(item.id);
     const customConfig = itemDefaults[item.id];
     const isNodeMode = customConfig !== undefined ? customConfig.isNode : item.type === 'node';
-    const defaultScale = customConfig?.scale !== undefined ? customConfig.scale : (!isNodeMode ? 0.3 : 1.0);
+    const defaultScale = customConfig?.scale !== undefined ? customConfig.scale : 1.0;
 
     setBrushArgs(prev => ({
       ...prev,
@@ -800,7 +800,7 @@ export default function App() {
   const handleInsertBetterCraftEntity = (item: BetterCraftItem) => {
     const customConfig = itemDefaults[item.id];
     const isNodeMode = customConfig !== undefined ? customConfig.isNode : item.type === 'node';
-    const defaultScale = customConfig?.scale !== undefined ? customConfig.scale : (!isNodeMode ? 0.3 : 1.0);
+    const defaultScale = customConfig?.scale !== undefined ? customConfig.scale : 1.0;
 
     const newEntity: BlockFrameEntity = {
       id: `bf-ent-${Date.now()}-${Math.floor(Math.random() * 1000)}`,

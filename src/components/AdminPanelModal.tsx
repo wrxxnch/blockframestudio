@@ -72,7 +72,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     activeCustomConfig?.label || ''
   );
   const [editScale, setEditScale] = useState<number>(
-    activeCustomConfig?.scale || (activeCustomConfig?.isNode ? 1.0 : 0.3)
+    activeCustomConfig?.scale || 1.0
   );
   const [isSavingDefault, setIsSavingDefault] = useState(false);
 
@@ -121,12 +121,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       setEditIsNode(existing.isNode);
       setEditImage(existing.image || '');
       setEditLabel(existing.label || itemData?.name || '');
-      setEditScale(existing.scale || (existing.isNode ? 1.0 : 0.3));
+      setEditScale(existing.scale || 1.0);
     } else if (itemData) {
       setEditIsNode(itemData.defaultIsNode);
       setEditImage(itemData.defaultImage || '');
       setEditLabel(itemData.name);
-      setEditScale(itemData.defaultIsNode ? 1.0 : 0.3);
+      setEditScale(1.0);
     }
   };
 
@@ -169,7 +169,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         isNode: editIsNode,
         image: editImage.trim() || undefined,
         label: editLabel.trim() || undefined,
-        scale: editScale || (editIsNode ? 1.0 : 0.3),
+        scale: editScale || 1.0,
         updatedBy: currentUserEmail || 'admin'
       });
       showToast(`Padrão do item "${selectedItemId}" salvo com sucesso!`, 'success');
@@ -189,7 +189,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         setEditIsNode(original.defaultIsNode);
         setEditImage(original.defaultImage || '');
         setEditLabel(original.name);
-        setEditScale(original.defaultIsNode ? 1.0 : 0.3);
+        setEditScale(1.0);
       }
       showToast(`Padrão original restaurado para "${selectedItemId}"!`, 'info');
     } catch (err: any) {
@@ -480,7 +480,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         type="button"
                         onClick={() => {
                           setEditIsNode(false);
-                          if (editScale === 1.0) setEditScale(0.3);
                         }}
                         className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
                           !editIsNode
@@ -506,7 +505,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         type="button"
                         onClick={() => {
                           setEditIsNode(true);
-                          if (editScale === 0.3) setEditScale(1.0);
                         }}
                         className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
                           editIsNode
@@ -602,7 +600,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {[0.25, 0.3, 0.5, 0.75, 1.0].map(s => (
+                      {[0.25, 0.5, 0.75, 1.0, 1.5, 2.0].map(s => (
                         <button
                           key={s}
                           type="button"

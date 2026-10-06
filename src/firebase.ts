@@ -593,7 +593,7 @@ export async function saveItemDefaultProperty(
     id: docId,
     itemId: config.itemId,
     isNode: Boolean(config.isNode),
-    scale: Number(config.scale) || (config.isNode ? 1.0 : 0.3),
+    scale: Number(config.scale) || 1.0,
     updatedBy: updatedBy || auth.currentUser?.email || PRIMARY_OWNER_EMAIL,
     updatedAt: now
   };

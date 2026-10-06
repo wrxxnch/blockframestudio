@@ -1456,7 +1456,7 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                     { label: '1.0', sub: 'Padrão', val: 1.0 },
                     { label: '0.5', sub: '1/2 Bloco', val: 0.5 },
                     { label: '2.0', sub: '2 Blocos', val: 2.0 },
-                    { label: '0.3', sub: 'Item 1F', val: 0.3 },
+                    { label: '0.25', sub: '1/4 Bloco', val: 0.25 },
                   ].map((p, idx) => (
                     <button
                       key={idx}
