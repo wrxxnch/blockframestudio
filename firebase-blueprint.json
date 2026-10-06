@@ -1,0 +1,197 @@
+{
+  "entities": {
+    "project": {
+      "title": "Project",
+      "description": "BlockFrame 3D voxel structure project for Minetest",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the project",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Display title of the project",
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of the structure",
+          "maxLength": 1000
+        },
+        "author": {
+          "type": "string",
+          "description": "Author or builder username",
+          "maxLength": 64
+        },
+        "authorId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the author if logged in",
+          "maxLength": 128
+        },
+        "tags": {
+          "type": "array",
+          "description": "List of tags associated with the project"
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Visibility of the project",
+          "enum": ["public", "unlisted", "private"]
+        },
+        "preview_url": {
+          "type": "string",
+          "description": "Preview thumbnail or icon URL",
+          "maxLength": 5000
+        },
+        "json_url": {
+          "type": "string",
+          "description": "Direct download link or storage URL",
+          "maxLength": 1000
+        },
+        "blockCount": {
+          "type": "integer",
+          "description": "Total number of blocks in the structure"
+        },
+        "sizeX": {
+          "type": "number",
+          "description": "Bounding box width X"
+        },
+        "sizeY": {
+          "type": "number",
+          "description": "Bounding box height Y"
+        },
+        "sizeZ": {
+          "type": "number",
+          "description": "Bounding box depth Z"
+        },
+        "entitiesJson": {
+          "type": "string",
+          "description": "Serialized BlockFrame entities JSON",
+          "maxLength": 500000
+        },
+        "likes": {
+          "type": "integer",
+          "description": "Total like votes"
+        },
+        "downloads": {
+          "type": "integer",
+          "description": "Total downloads count"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp ISO string or server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "author",
+        "visibility",
+        "blockCount",
+        "entitiesJson",
+        "likes",
+        "downloads"
+      ]
+    },
+    "admin": {
+      "title": "Admin",
+      "description": "System administrator with permission to edit default item properties and manage admins",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Normalized lowercase email or ID of the admin",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "Admin email address",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "description": "Role type",
+          "enum": ["owner", "admin"]
+        },
+        "addedBy": {
+          "type": "string",
+          "description": "Email or ID of admin who authorized this admin",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO creation timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "role"
+      ]
+    },
+    "itemDefault": {
+      "title": "ItemDefault",
+      "description": "Default rendering and visual properties for items and blocks",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Sanitized identifier for the item default config",
+          "maxLength": 128
+        },
+        "itemId": {
+          "type": "string",
+          "description": "Unique node or item ID (e.g. mcl_farming:cookie)",
+          "maxLength": 128
+        },
+        "isNode": {
+          "type": "boolean",
+          "description": "True if defaults to 3D block, false if 1-face item"
+        },
+        "image": {
+          "type": "string",
+          "description": "Custom image URL or texture path in the catalog list",
+          "maxLength": 2048
+        },
+        "label": {
+          "type": "string",
+          "description": "Custom display title or label",
+          "maxLength": 128
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Email of admin who last updated the item default",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": [
+        "id",
+        "itemId",
+        "isNode"
+      ]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": "project",
+      "description": "Collection of community and personal BlockFrame projects"
+    },
+    "/admins/{adminId}": {
+      "schema": "admin",
+      "description": "Collection of authorized administrators"
+    },
+    "/item_defaults/{itemId}": {
+      "schema": "itemDefault",
+      "description": "Configured item defaults defining 1-face item vs 3D node and custom image"
+    }
+  }
+}

@@ -69,20 +69,36 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
             <div className="bg-[#141520] p-4 rounded-xl border border-slate-800 space-y-3">
               <div className="font-bold text-slate-200 flex items-center gap-2 border-b border-slate-800 pb-2">
                 <Move className="w-4 h-4 text-emerald-400" />
-                <span>Ações no Viewport</span>
+                <span>Ações & Atalhos de Seleção</span>
               </div>
               <ul className="space-y-2 text-[11px] text-slate-400">
                 <li className="flex justify-between">
-                  <span className="font-semibold text-slate-300">Colocar Bloco:</span>
-                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Clique na Grade ou Face</span>
+                  <span className="font-semibold text-slate-300">Selecionar Único:</span>
+                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Clique no Bloco</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="font-semibold text-slate-300">Selecionar Bloco:</span>
-                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Clique no Bloco (Modo Seleção)</span>
+                  <span className="font-semibold text-slate-300">Multi-seleção 3D:</span>
+                  <span className="bg-cyan-950/60 border border-cyan-800/50 px-1.5 py-0.5 rounded text-cyan-300">Shift + Clique no Bloco</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="font-semibold text-slate-300">Deletar Bloco:</span>
-                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Clique no Bloco (Modo Borracha)</span>
+                  <span className="font-semibold text-slate-300">Alternar / Desmarcar:</span>
+                  <span className="bg-amber-950/60 border border-amber-800/50 px-1.5 py-0.5 rounded text-amber-300">Ctrl + Clique no Bloco</span>
+                </li>
+                <li className="flex justify-between">
+                  <span className="font-semibold text-slate-300">Copiar Seleção:</span>
+                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Ctrl + C</span>
+                </li>
+                <li className="flex justify-between">
+                  <span className="font-semibold text-slate-300">Colar Elementos:</span>
+                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Ctrl + V</span>
+                </li>
+                <li className="flex justify-between">
+                  <span className="font-semibold text-slate-300">Selecionar Todos / Inverter:</span>
+                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Ctrl + A / Botão Inverter</span>
+                </li>
+                <li className="flex justify-between">
+                  <span className="font-semibold text-slate-300">Deletar Seleção:</span>
+                  <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Delete / Backspace</span>
                 </li>
               </ul>
             </div>

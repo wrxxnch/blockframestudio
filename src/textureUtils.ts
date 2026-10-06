@@ -146,7 +146,22 @@ export function createProceduralPixelTexture(nodeId: string, baseColorHex: strin
 /**
  * Resolves the primary URL or local path for an entity node
  */
-export function resolveNodeTextureUrl(nodeId: string): string | null {
+export function resolveNodeTextureUrl(nodeId: string, customOverride?: string): string | null {
+  if (customOverride && customOverride.trim()) {
+    return customOverride.trim();
+  }
+
+  // Check cached local item defaults
+  try {
+    const raw = localStorage.getItem('blockframe_item_defaults_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed[nodeId]?.image) {
+        return parsed[nodeId].image;
+      }
+    }
+  } catch (e) {}
+
   // 1. Direct local file mapping
   if (LOCAL_TEXTURE_MAP[nodeId]) {
     return LOCAL_TEXTURE_MAP[nodeId];

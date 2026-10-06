@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-@.+:]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(authorId) {
+      return isSignedIn() && authorId != null && request.auth.uid == authorId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email != null && request.auth.token.email.lower() == 'jeanpierreowner@gmail.com';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (
+        isSignedIn() && request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email.lower()))
+      );
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['id', 'title', 'author', 'visibility', 'blockCount', 'entitiesJson', 'likes', 'downloads'])
+        && data.keys().hasOnly(['id', 'title', 'description', 'author', 'authorId', 'tags', 'visibility', 'preview_url', 'json_url', 'blockCount', 'sizeX', 'sizeY', 'sizeZ', 'entitiesJson', 'likes', 'downloads', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100
+        && (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 1000))
+        && data.author is string && data.author.size() > 0 && data.author.size() <= 64
+        && (!('authorId' in data) || data.authorId == null || (data.authorId is string && data.authorId.size() <= 128))
+        && data.visibility in ['public', 'unlisted', 'private']
+        && data.blockCount is int && data.blockCount >= 0
+        && data.entitiesJson is string && data.entitiesJson.size() > 0 && data.entitiesJson.size() <= 500000
+        && data.likes is int && data.likes >= 0
+        && data.downloads is int && data.downloads >= 0
+        && (!('tags' in data) || (data.tags is list && data.tags.size() <= 15));
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId) && (
+        resource.data.visibility == 'public' ||
+        resource.data.visibility == 'unlisted' ||
+        isOwner(resource.data.authorId)
+      );
+
+      allow list: if resource.data.visibility == 'public' ||
+        isOwner(resource.data.authorId);
+
+      allow create: if isValidId(projectId)
+        && projectId == incoming().id
+        && isValidProject(incoming())
+        && (
+          !('authorId' in incoming()) ||
+          incoming().authorId == null ||
+          (isSignedIn() && incoming().authorId == request.auth.uid)
+        );
+
+      allow update: if isValidId(projectId)
+        && (
+          // Action 1: Like increment
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['likes'])
+            && incoming().likes == existing().likes + 1
+          ) ||
+          // Action 2: Download increment
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['downloads'])
+            && incoming().downloads == existing().downloads + 1
+          ) ||
+          // Action 3: Project Author Update
+          (
+            isOwner(existing().authorId)
+            && isValidProject(incoming())
+            && incoming().id == existing().id
+            && (
+              !('authorId' in existing()) ||
+              incoming().authorId == existing().authorId
+            )
+            && (
+              !('createdAt' in existing()) ||
+              incoming().createdAt == existing().createdAt
+            )
+          )
+        );
+
+      allow delete: if isValidId(projectId) && isOwner(existing().authorId);
+    }
+
+    // Admins collection
+    match /admins/{adminId} {
+      allow get, list: if true;
+      allow create, update: if isAdmin() && isValidId(adminId);
+      allow delete: if isAdmin() && adminId != 'jeanpierreowner@gmail.com';
+    }
+
+    // Item Defaults collection
+    match /item_defaults/{itemId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin() && itemId is string && itemId.size() > 0 && itemId.size() <= 128;
+    }
+
+    // Connectivity test collection
+    match /test/{docId} {
+      allow read: if true;
+    }
+  }
+}

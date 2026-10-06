@@ -41,8 +41,9 @@ export interface ProjectMetaData {
   title: string;
   description: string;
   author: string;
+  authorId?: string;
   tags: string[];
-  visibility: 'public' | 'private';
+  visibility: 'public' | 'private' | 'unlisted';
   downloads?: number;
   likes?: number;
   blockCount?: number;
@@ -143,3 +144,23 @@ export const MINETEST_NODES: MinetestNodeMetadata[] = [
   { id: 'wool:magenta', name: 'Magenta Wool', category: 'colored', color: '#ff00ff' },
   { id: 'wool:cyan', name: 'Cyan Wool', category: 'colored', color: '#00ffff' },
 ];
+
+export interface ItemDefaultConfig {
+  id: string; // sanitized or itemId
+  itemId: string;
+  isNode: boolean; // true = 3D node, false = 1 face item
+  image?: string; // custom texture/icon URL
+  label?: string; // custom display label
+  scale?: number; // custom default scale
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+export interface AdminUser {
+  id: string; // email lowercase
+  email: string;
+  role: 'owner' | 'admin';
+  addedBy?: string;
+  createdAt?: string;
+}
+

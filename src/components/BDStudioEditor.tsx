@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Plus,
@@ -20,13 +20,108 @@ import {
   Globe,
   X,
   Package,
-  Move
+  Move,
+  Clipboard,
+  Sliders,
+  Shield
 } from 'lucide-react';
-import { BlockFrameEntity, BlockFrameArgs, MinetestNodeMetadata, ProjectItem, MINETEST_NODES } from '../types';
+import { BlockFrameEntity, BlockFrameArgs, MinetestNodeMetadata, ProjectItem, MINETEST_NODES, ItemDefaultConfig } from '../types';
 import VoxelViewport from './VoxelViewport';
 import CommandConsole from './CommandConsole';
 import { ItemLibrarySidebar } from './ItemLibrarySidebar';
 import { findBetterCraftItem } from '../bettercraftRegistry';
+
+interface FlexibleNumericInputProps {
+  value: number;
+  onChange: (val: number) => void;
+  min?: number;
+  max?: number;
+  className?: string;
+  placeholder?: string;
+}
+
+function FlexibleNumericInput({
+  value,
+  onChange,
+  min,
+  max,
+  className = '',
+  placeholder = ''
+}: FlexibleNumericInputProps) {
+  const [localText, setLocalText] = useState<string>(() =>
+    value !== undefined && value !== null ? String(value) : ''
+  );
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalText(value !== undefined && value !== null ? String(value) : '');
+    }
+  }, [value, isFocused]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setLocalText(raw);
+
+    const normalized = raw.replace(',', '.').trim();
+    // Allow empty or in-progress typing without crashing, blocking or premature clamping
+    if (normalized === '' || normalized === '-' || normalized === '.' || normalized === '0.' || normalized.endsWith('.')) {
+      return;
+    }
+
+    const num = parseFloat(normalized);
+    if (!isNaN(num)) {
+      if (max !== undefined && num > max) return;
+      // Only fire onChange when valid (e.g. >= min)
+      if (min === undefined || num >= min) {
+        onChange(num);
+      }
+    }
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFocused(true);
+    // Auto-select entire text on focus so user can immediately type a replacement like 0.01
+    e.target.select();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const normalized = localText.replace(',', '.').trim();
+    const num = parseFloat(normalized);
+    if (isNaN(num) || normalized === '') {
+      const fallback = min !== undefined ? min : (value !== undefined ? value : 0.01);
+      setLocalText(String(fallback));
+      onChange(fallback);
+    } else {
+      let clamped = num;
+      if (min !== undefined && clamped < min) clamped = min;
+      if (max !== undefined && clamped > max) clamped = max;
+      setLocalText(String(clamped));
+      onChange(clamped);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={localText}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+}
 
 interface BDStudioEditorProps {
   entities: BlockFrameEntity[];
@@ -78,6 +173,12 @@ interface BDStudioEditorProps {
     transforms: boolean;
   };
   toggleAccordion: (section: 'elements' | 'project' | 'properties' | 'nbt' | 'transforms') => void;
+  openSectionIndividually?: (section: 'elements' | 'project' | 'properties' | 'nbt' | 'transforms') => void;
+  openAllSections?: () => void;
+  handleCopySelected?: () => void;
+  handlePaste?: () => void;
+  handleInvertSelection?: () => void;
+  clipboardCount?: number;
   showBottomDrawer: boolean;
   setShowBottomDrawer: React.Dispatch<React.SetStateAction<boolean>>;
   customNodes: Array<{ id: string; name: string; color?: string; texture?: string }>;
@@ -91,6 +192,10 @@ interface BDStudioEditorProps {
   setPaletteSearch: (val: string) => void;
   presetProjects: ProjectItem[];
   pushStateToHistory: (currentEntities: BlockFrameEntity[], actionLabel: string) => void;
+  isAdmin?: boolean;
+  onOpenAdminPanel?: () => void;
+  onOpenAdminItemEdit?: (itemId: string) => void;
+  itemDefaults?: Record<string, ItemDefaultConfig>;
 }
 
 export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
@@ -136,6 +241,12 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
   setSidebarLeftTab,
   accordionSections,
   toggleAccordion,
+  openSectionIndividually,
+  openAllSections,
+  handleCopySelected,
+  handlePaste,
+  handleInvertSelection,
+  clipboardCount = 0,
   showBottomDrawer,
   setShowBottomDrawer,
   customNodes,
@@ -149,6 +260,10 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
   setPaletteSearch,
   presetProjects,
   pushStateToHistory,
+  isAdmin = false,
+  onOpenAdminPanel,
+  onOpenAdminItemEdit,
+  itemDefaults = {},
 }) => {
   const [gizmoMode, setGizmoMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
   const [isLibraryOpen, setIsLibraryOpen] = useState<boolean>(true);
@@ -186,6 +301,11 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
     size: { x: number; y: number; z: number }
   ) => {
     pushStateToHistory(entities, `Transformar bloco`);
+    const primary = entities.find(e => e.id === id);
+    const deltaX = primary ? pos.x - primary.pos.x : 0;
+    const deltaY = primary ? pos.y - primary.pos.y : 0;
+    const deltaZ = primary ? pos.z - primary.pos.z : 0;
+
     setEntities(prev =>
       prev.map(e => {
         if (e.id === id) {
@@ -197,6 +317,17 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
               rotate,
               size,
             },
+          };
+        }
+        // If moving a multi-selection group, translate the other selected items by delta
+        if (selectedIds.includes(e.id) && selectedIds.includes(id)) {
+          return {
+            ...e,
+            pos: {
+              x: Math.round((e.pos.x + deltaX) * 1000) / 1000,
+              y: Math.max(0, Math.round((e.pos.y + deltaY) * 1000) / 1000),
+              z: Math.round((e.pos.z + deltaZ) * 1000) / 1000,
+            }
           };
         }
         return e;
@@ -536,11 +667,48 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
 
         {/* 3D Viewport Render Canvas */}
         <div className="flex-1 relative w-full h-full">
+          {/* Quick Snap & Multi-select Status Overlay on 3D Canvas */}
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2 bg-[#12131b]/90 backdrop-blur-md p-1.5 px-3 rounded-xl border border-slate-800/80 shadow-2xl font-mono text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-400 font-bold">SNAP:</span>
+              <FlexibleNumericInput
+                value={gridSnap}
+                min={0.001}
+                max={50}
+                onChange={(newVal) => setGridSnap(Math.round(newVal * 1000) / 1000)}
+                className="w-14 bg-[#0a0b10] border border-slate-700/80 rounded px-1.5 py-0.5 text-center text-cyan-300 font-bold text-xs focus:outline-none focus:border-cyan-500"
+                placeholder="0.01"
+              />
+            </div>
+            {selectedIds.length > 0 && (
+              <div className="flex items-center gap-1 pl-2 border-l border-slate-800 text-[11px] text-emerald-400 font-bold">
+                <span>{selectedIds.length} sel.</span>
+              </div>
+            )}
+          </div>
+
           <VoxelViewport
             entities={entities}
             selectedIds={selectedIds}
-            onSelectEntity={(id) => {
-              setSelectedIds(id ? [id] : []);
+            onSelectEntity={(id, modifiers) => {
+              const isShift = !!modifiers?.shiftKey;
+              const isCtrl = !!(modifiers?.ctrlKey || modifiers?.metaKey);
+              if (!id) {
+                if (!isShift && !isCtrl) {
+                  setSelectedIds([]);
+                }
+                return;
+              }
+              if (isShift) {
+                // Shift adds to multi-selection
+                setSelectedIds(prev => prev.includes(id) ? prev : [...prev, id]);
+              } else if (isCtrl) {
+                // Ctrl toggles item or deselects individually
+                setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+              } else {
+                // Normal click selects single block
+                setSelectedIds([id]);
+              }
               setActiveTool('select');
             }}
             activePreview={{
@@ -614,10 +782,78 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
       {/* BDStudio Right Inspector Sidebar */}
       <div className="w-full md:w-80 xl:w-88 shrink-0 bg-[#101118] border-l border-slate-800 flex flex-col max-h-[calc(100vh-53px)] overflow-y-auto font-mono text-xs select-none p-3 space-y-3">
         
+        {/* Navigation Tabs Header: Abrir abas individualmente */}
+        <div className="bg-[#151620] p-1 rounded-xl border border-slate-800 shadow-sm flex items-center justify-between">
+          <div className="grid grid-cols-4 gap-1 flex-1">
+            <button
+              onClick={() => openSectionIndividually ? openSectionIndividually('elements') : toggleAccordion('elements')}
+              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all ${
+                accordionSections.elements && !accordionSections.project && !accordionSections.properties && !accordionSections.transforms
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+              title="Abrir aba Elementos individualmente"
+            >
+              Elementos
+            </button>
+            <button
+              onClick={() => openSectionIndividually ? openSectionIndividually('project') : toggleAccordion('project')}
+              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all ${
+                accordionSections.project && !accordionSections.elements && !accordionSections.properties && !accordionSections.transforms
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+              title="Abrir aba Projeto individualmente"
+            >
+              Projeto
+            </button>
+            <button
+              onClick={() => openSectionIndividually ? openSectionIndividually('properties') : toggleAccordion('properties')}
+              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all ${
+                accordionSections.properties && !accordionSections.elements && !accordionSections.project && !accordionSections.transforms
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+              title="Abrir aba Propriedades individualmente"
+            >
+              Propriedades
+            </button>
+            <button
+              onClick={() => openSectionIndividually ? openSectionIndividually('transforms') : toggleAccordion('transforms')}
+              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold text-center cursor-pointer transition-all ${
+                accordionSections.transforms && !accordionSections.elements && !accordionSections.project && !accordionSections.properties
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+              title="Abrir aba Transforms individualmente"
+            >
+              Transforms
+            </button>
+          </div>
+          <button
+            onClick={() => {
+              const allOpen = accordionSections.elements && accordionSections.project && accordionSections.properties && accordionSections.transforms;
+              if (allOpen) {
+                openSectionIndividually ? openSectionIndividually('elements') : toggleAccordion('elements');
+              } else {
+                openAllSections ? openAllSections() : toggleAccordion('elements');
+              }
+            }}
+            className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/60 cursor-pointer"
+            title={
+              accordionSections.elements && accordionSections.project && accordionSections.properties && accordionSections.transforms
+                ? 'Modo Individual (Apenas 1 aba aberta)'
+                : 'Expandir Todas as Abas'
+            }
+          >
+            <Layers className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         {/* Accordion 1: v Elements */}
         <div className="bg-[#151620] rounded-xl border border-slate-800/90 overflow-hidden shadow-sm">
           <button
-            onClick={() => toggleAccordion('elements')}
+            onClick={() => openSectionIndividually ? openSectionIndividually('elements') : toggleAccordion('elements')}
             className="w-full px-3 py-2 flex items-center justify-between text-left text-slate-200 hover:bg-slate-800/40 transition-colors cursor-pointer border-b border-slate-800/60"
           >
             <span className="font-bold flex items-center gap-1.5 text-[11px] text-slate-200">
@@ -638,7 +874,7 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                     setBrushArgs(prev => ({
                       ...prev,
                       node: true,
-                      size: { x: 0.67, y: 0.67, z: 0.67 }
+                      size: { x: 1, y: 1, z: 1 }
                     }));
                     setShowPaletteDrawer(true);
                     setSidebarLeftTab('palette');
@@ -660,8 +896,8 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                   onClick={() => {
                     setBrushArgs(prev => ({
                       ...prev,
-                      node: false,
-                      size: { x: 0.3, y: 0.3, z: 0.3 },
+                      node: false, // 1-Face item padrão!
+                      size: { x: 1, y: 1, z: 1 },
                       rotate: { x: -45, y: 0, z: 0 }
                     }));
                     setIsBetterCraftBrowserOpen(true);
@@ -671,12 +907,13 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                       ? 'bg-amber-500/15 border-amber-500/50 text-amber-300'
                       : 'bg-[#0d0e15] border-slate-800 text-slate-400 hover:text-slate-200'
                   }`}
+                  title="Itens padrão 1-Face Item (Flat sprite)"
                 >
                   <div className="flex items-center gap-1 mb-0.5">
                     <Sparkles className="w-4 h-4" />
                     <Search className="w-2.5 h-2.5 text-slate-500" />
                   </div>
-                  <span className="text-[10px] font-bold">Items</span>
+                  <span className="text-[10px] font-bold">Items (1 Face)</span>
                 </button>
 
                 <button
@@ -690,31 +927,47 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                 </button>
               </div>
 
-              {/* Quick action buttons row: Duplicate, Group, Delete */}
-              <div className="grid grid-cols-3 gap-1.5 pt-1">
+              {/* Quick action buttons row: Copy, Paste, Duplicate, Group, Delete */}
+              <div className="grid grid-cols-5 gap-1 pt-1">
+                <button
+                  onClick={handleCopySelected}
+                  className="flex flex-col items-center justify-center py-1.5 px-1 rounded-lg bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 transition-all cursor-pointer text-[9px] font-semibold"
+                  title="Copiar seleção (Ctrl+C)"
+                >
+                  <Copy className="w-3 h-3 text-cyan-400 mb-0.5" />
+                  <span>Copiar</span>
+                </button>
+                <button
+                  onClick={handlePaste}
+                  className="flex flex-col items-center justify-center py-1.5 px-1 rounded-lg bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 transition-all cursor-pointer text-[9px] font-semibold"
+                  title="Colar elementos (Ctrl+V)"
+                >
+                  <Clipboard className="w-3 h-3 text-emerald-400 mb-0.5" />
+                  <span>Colar</span>
+                </button>
                 <button
                   onClick={handleDuplicateSelected}
-                  className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 transition-all cursor-pointer text-[10px] font-semibold"
+                  className="flex flex-col items-center justify-center py-1.5 px-1 rounded-lg bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 transition-all cursor-pointer text-[9px] font-semibold"
                   title="Duplicar elemento selecionado"
                 >
-                  <Copy className="w-3 h-3 text-cyan-400" />
-                  <span>Duplicate</span>
+                  <Copy className="w-3 h-3 text-amber-400 mb-0.5" />
+                  <span>Duplicar</span>
                 </button>
                 <button
                   onClick={handleSelectAllOrGroup}
-                  className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 transition-all cursor-pointer text-[10px] font-semibold"
+                  className="flex flex-col items-center justify-center py-1.5 px-1 rounded-lg bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 transition-all cursor-pointer text-[9px] font-semibold"
                   title="Selecionar todos ou agrupar"
                 >
-                  <Boxes className="w-3 h-3 text-purple-400" />
-                  <span>Group</span>
+                  <Boxes className="w-3 h-3 text-purple-400 mb-0.5" />
+                  <span>Grupo</span>
                 </button>
                 <button
                   onClick={handleDeleteSelected}
-                  className="flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-[#0d0e15] hover:bg-rose-950/40 text-rose-400 border border-slate-800 hover:border-rose-900/60 transition-all cursor-pointer text-[10px] font-semibold"
-                  title="Deletar seleção"
+                  className="flex flex-col items-center justify-center py-1.5 px-1 rounded-lg bg-[#0d0e15] hover:bg-rose-950/40 text-rose-400 border border-slate-800 hover:border-rose-900/60 transition-all cursor-pointer text-[9px] font-semibold"
+                  title="Deletar seleção (Delete)"
                 >
-                  <Trash2 className="w-3 h-3 text-rose-400" />
-                  <span>Delete</span>
+                  <Trash2 className="w-3 h-3 text-rose-400 mb-0.5" />
+                  <span>Deletar</span>
                 </button>
               </div>
             </div>
@@ -724,7 +977,7 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
         {/* Accordion 2: v Project */}
         <div className="bg-[#151620] rounded-xl border border-slate-800/90 overflow-hidden shadow-sm">
           <button
-            onClick={() => toggleAccordion('project')}
+            onClick={() => openSectionIndividually ? openSectionIndividually('project') : toggleAccordion('project')}
             className="w-full px-3 py-2 flex items-center justify-between text-left text-slate-200 hover:bg-slate-800/40 transition-colors cursor-pointer border-b border-slate-800/60"
           >
             <span className="font-bold flex items-center gap-1.5 text-[11px]">
@@ -770,6 +1023,22 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                       title="Selecionar Todos (Ctrl+A)"
                     >
                       {selectedIds.length === entities.length ? 'Desmarcar' : 'Ctrl+A'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (handleInvertSelection) {
+                          handleInvertSelection();
+                        } else {
+                          const inverted = entities.filter(ent => !selectedIds.includes(ent.id)).map(ent => ent.id);
+                          setSelectedIds(inverted);
+                          showToast(`Seleção invertida (${inverted.length} selecionado(s))`);
+                        }
+                      }}
+                      className="text-[9px] bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded cursor-pointer transition-colors flex items-center gap-1"
+                      title="Inverter seleção de itens"
+                    >
+                      <RotateCw className="w-2.5 h-2.5" />
+                      <span>Inverter</span>
                     </button>
                     {selectedIds.length > 0 && (
                       <button
@@ -872,7 +1141,7 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
         {/* Accordion 3: v Properties */}
         <div className="bg-[#151620] rounded-xl border border-slate-800/90 overflow-hidden shadow-sm">
           <button
-            onClick={() => toggleAccordion('properties')}
+            onClick={() => openSectionIndividually ? openSectionIndividually('properties') : toggleAccordion('properties')}
             className="w-full px-3 py-2 flex items-center justify-between text-left text-slate-200 hover:bg-slate-800/40 transition-colors cursor-pointer border-b border-slate-800/60"
           >
             <span className="font-bold flex items-center gap-1.5 text-[11px]">
@@ -940,6 +1209,24 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                         </button>
                       </div>
                     </div>
+
+                    {/* Admin Item Default Quick Edit */}
+                    {isAdmin && onOpenAdminItemEdit && (
+                      <div className="pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const targetNode = selectedEntity ? selectedEntity.node : brushNode;
+                            onOpenAdminItemEdit(targetNode);
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-bold cursor-pointer transition-colors"
+                          title="Abrir painel admin para configurar propriedade padrão (1 face vs 3D, imagem na lista) deste item"
+                        >
+                          <Sliders className="w-3 h-3 text-amber-400" />
+                          <span className="truncate">👑 Editar Padrão Global: {selectedEntity ? selectedEntity.node : brushNode}</span>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Glow Slider */}
                     <div className="space-y-1">
@@ -1009,28 +1296,28 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
         {/* Accordion 4: v Transforms */}
         <div className="bg-[#151620] rounded-xl border border-slate-800/90 overflow-hidden shadow-sm">
           <button
-            onClick={() => toggleAccordion('transforms')}
+            onClick={() => openSectionIndividually ? openSectionIndividually('transforms') : toggleAccordion('transforms')}
             className="w-full px-3 py-2 flex items-center justify-between text-left text-slate-200 hover:bg-slate-800/40 transition-colors cursor-pointer border-b border-slate-800/60"
           >
             <span className="font-bold flex items-center gap-1.5 text-[11px]">
               <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${accordionSections.transforms ? '' : '-rotate-90'}`} />
               Transforms
             </span>
-            <span className="text-[10px] text-cyan-400">
+            <span className="text-[10px] text-cyan-400 font-bold bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-900/50">
               Snap: {gridSnap}
             </span>
           </button>
 
           {accordionSections.transforms && (
             <div className="p-3 space-y-3">
-              {/* Snap step selector */}
-              <div className="space-y-1">
+              {/* Snap step selector & Custom Input */}
+              <div className="space-y-1.5">
                 <div className="flex justify-between text-[10px] text-slate-400">
                   <span>Grid Step (Espaçamento):</span>
                   <span className="text-cyan-400 font-bold">{gridSnap === 1.0 ? '1 bloco exato' : `${gridSnap}`}</span>
                 </div>
-                <div className="grid grid-cols-5 gap-1">
-                  {[0.1, 0.25, 0.5, 1.0, 2.0].map(val => (
+                <div className="grid grid-cols-6 gap-1">
+                  {[0.01, 0.1, 0.25, 0.5, 1.0, 2.0].map(val => (
                     <button
                       key={val}
                       onClick={() => setGridSnap(val)}
@@ -1043,6 +1330,30 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                       {val}
                     </button>
                   ))}
+                </div>
+
+                {/* Custom Snap Input */}
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] text-slate-400 font-semibold shrink-0">Snap Custom:</span>
+                  <div className="flex-1 flex items-center bg-[#0c0d14] border border-slate-800 focus-within:border-cyan-500 rounded-lg px-2.5 py-1">
+                    <FlexibleNumericInput
+                      value={gridSnap}
+                      min={0.001}
+                      max={50}
+                      onChange={(newVal) => setGridSnap(Math.round(newVal * 1000) / 1000)}
+                      className="w-full bg-transparent text-cyan-300 font-mono text-xs font-bold focus:outline-none"
+                      placeholder="Valor livre (ex: 0.01 ou 0,01)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setGridSnap(0.01)}
+                      className="text-[9px] text-slate-500 hover:text-cyan-300 px-1 py-0.5 rounded cursor-pointer transition-colors font-mono"
+                      title="Definir 0.01 rápido"
+                    >
+                      0.01
+                    </button>
+                    <span className="text-[9px] text-slate-500 font-mono ml-1">blocos</span>
+                  </div>
                 </div>
               </div>
 
@@ -1061,12 +1372,11 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                       >
                         -
                       </button>
-                      <input
-                        type="number"
-                        step={gridSnap}
+                      <FlexibleNumericInput
                         value={curVal}
-                        onChange={(e) => setSelectedPosValue(axis, parseFloat(e.target.value) || 0)}
+                        onChange={(newVal) => setSelectedPosValue(axis, newVal)}
                         className="flex-1 bg-transparent text-center font-bold text-white focus:outline-none"
+                        placeholder="0"
                       />
                       <button
                         onClick={() => adjustSelectedPos(axis, gridSnap)}
@@ -1127,13 +1437,13 @@ export const BDStudioEditor: React.FC<BDStudioEditorProps> = ({
                     return (
                       <div key={axis} className="bg-[#0c0d14] p-1.5 rounded-lg border border-slate-800 text-center">
                         <span className="uppercase text-[9px] text-slate-500 font-bold block">{axis}</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
+                        <FlexibleNumericInput
                           value={val}
-                          onChange={(e) => setSelectedSizeValue(axis, parseFloat(e.target.value) || 0.1)}
+                          min={0.001}
+                          max={100}
+                          onChange={(newVal) => setSelectedSizeValue(axis, newVal)}
                           className="w-full bg-transparent text-center font-bold text-white focus:outline-none text-xs"
+                          placeholder="1.0"
                         />
                       </div>
                     );

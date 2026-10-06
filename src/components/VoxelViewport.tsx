@@ -9,7 +9,7 @@ import { loadVoxelTexture } from '../textureUtils';
 interface VoxelViewportProps {
   entities: BlockFrameEntity[];
   selectedIds: string[];
-  onSelectEntity: (id: string | null) => void;
+  onSelectEntity: (id: string | null, modifiers?: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => void;
   activePreview: {
     node: string;
     size: Vector3D;
@@ -256,9 +256,9 @@ export default function VoxelViewport({
             z: Math.round(((mesh.rotation.z * 180) / Math.PI) * 10) / 10,
           };
           const finalSize: Vector3D = {
-            x: Math.max(0.05, Math.round(mesh.scale.x * 1000) / 1000),
-            y: Math.max(0.05, Math.round(mesh.scale.y * 1000) / 1000),
-            z: Math.max(0.05, Math.round(mesh.scale.z * 1000) / 1000),
+            x: Math.max(0.001, Math.round(mesh.scale.x * 1000) / 1000),
+            y: Math.max(0.001, Math.round(mesh.scale.y * 1000) / 1000),
+            z: Math.max(0.001, Math.round(mesh.scale.z * 1000) / 1000),
           };
 
           statesRef.current.onTransformCommit?.(id, finalPos, finalRot, finalSize);
@@ -440,13 +440,27 @@ export default function VoxelViewport({
 
       if (intersects.length > 0) {
         const hit = intersects[0];
+        const modifiers = {
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey
+        };
+
+        // If holding Shift or Ctrl/Cmd, clicking any voxel block performs multi-selection or toggle immediately
+        if (event.shiftKey || event.ctrlKey || event.metaKey) {
+          if (hit.object.name === 'voxel_block') {
+            const blockId = hit.object.userData?.id;
+            statesRef.current.onSelectEntity(blockId || null, modifiers);
+            return;
+          }
+        }
 
         if (statesRef.current.activeTool === 'select') {
           if (hit.object.name === 'voxel_block') {
             const blockId = hit.object.userData?.id;
-            statesRef.current.onSelectEntity(blockId || null);
+            statesRef.current.onSelectEntity(blockId || null, modifiers);
           } else {
-            statesRef.current.onSelectEntity(null);
+            statesRef.current.onSelectEntity(null, modifiers);
           }
         } else if (statesRef.current.activeTool === 'delete') {
           if (hit.object.name === 'voxel_block') {

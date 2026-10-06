@@ -104,7 +104,8 @@ export function generateLuaExport(
   entities.forEach((ent, i) => {
     const rX = ent.args.rotate.x;
     const rY = ent.args.rotate.y;
-    const rZ = ent.args.rotate.z;
+    // Invert Z rotation to match BlockFrame coordinate orientation (e.g. z=45 in sim becomes z=-45 in output code)
+    const rZ = ent.args.rotate.z === 0 ? 0 : -ent.args.rotate.z;
 
     const sx = Math.round(ent.args.size.x * scaleMultiplier * 10000) / 10000;
     const sy = Math.round(ent.args.size.y * scaleMultiplier * 10000) / 10000;
@@ -174,7 +175,11 @@ export function generateBlockFrameJSON(
           y: Math.round(ent.args.size.y * scaleMultiplier * 10000) / 10000,
           z: Math.round(ent.args.size.z * scaleMultiplier * 10000) / 10000,
         },
-        rotate: ent.args.rotate,
+        rotate: {
+          x: ent.args.rotate.x,
+          y: ent.args.rotate.y,
+          z: ent.args.rotate.z === 0 ? 0 : -ent.args.rotate.z,
+        },
         mirror: ent.args.mirror,
         glow: ent.args.glow,
         collision: ent.args.collision,
@@ -417,6 +422,10 @@ export function parseBF(content: string): BlockFrameEntity[] {
 
     const sizeVal = extractVec('size', 1);
     const rotateVal = extractVec('rotate', 0);
+    // Invert Z rotation to map between BlockFrame export and Three.js simulation space (Z=-45 in file becomes Z=45 in sim)
+    if (rotateVal.z !== 0) {
+      rotateVal.z = -rotateVal.z;
+    }
 
     const mirrorMatch = block.match(/mirror\s*=\s*(?:"([^"]*)"|'([^']*)')/);
     const mirrorVal = mirrorMatch ? (mirrorMatch[1] || mirrorMatch[2] || 'none') : 'none';
@@ -492,7 +501,8 @@ export function generateBFExport(
   entities.forEach((ent, i) => {
     const rx = ent.args.rotate.x;
     const ry = ent.args.rotate.y;
-    const rz = ent.args.rotate.z;
+    // Invert Z rotation for BlockFrame output (z=45 in sim becomes z=-45 in output)
+    const rz = ent.args.rotate.z === 0 ? 0 : -ent.args.rotate.z;
 
     const absX = ent.pos.x + offsetX;
     const absY = ent.pos.y + offsetY;

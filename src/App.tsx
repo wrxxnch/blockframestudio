@@ -44,10 +44,12 @@ import {
   Bug,
   Keyboard,
   Code,
-  FileCode
+  FileCode,
+  Shield,
+  Crown
 } from 'lucide-react';
 
-import { BlockFrameEntity, BlockFrameArgs, Vector3D, ProjectItem, MINETEST_NODES } from './types';
+import { BlockFrameEntity, BlockFrameArgs, Vector3D, ProjectItem, MINETEST_NODES, ItemDefaultConfig, AdminUser } from './types';
 import { BETTERCRAFT_PALETTE_NODES, findBetterCraftItem, BetterCraftItem } from './bettercraftRegistry';
 import { PRESET_PROJECTS } from './presets';
 import {
@@ -64,13 +66,29 @@ import {
 } from './blockframeUtils';
 import {
   fetchProjects,
+  subscribeProjects,
   saveProject,
   likeProject,
   downloadProject,
   deleteProject,
-  isSupabaseConfigured,
-  SUPABASE_SQL_SCHEMA
-} from './supabase';
+  isFirebaseConfigured,
+  auth,
+  signInWithGoogle,
+  logOut,
+  fetchAdmins,
+  subscribeAdmins,
+  addAdminUser,
+  removeAdminUser,
+  fetchItemDefaults,
+  subscribeItemDefaults,
+  saveItemDefaultProperty,
+  deleteItemDefaultProperty,
+  PRIMARY_OWNER_EMAIL,
+  getLocalAdmins,
+  getLocalItemDefaults
+} from './firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import firebaseConfig from '../firebase-applet-config.json';
 
 import VoxelViewport from './components/VoxelViewport';
 import CommandConsole from './components/CommandConsole';
@@ -79,6 +97,7 @@ import BetterCraftBrowser from './components/BetterCraftBrowser';
 import { BDStudioEditor } from './components/BDStudioEditor';
 import { LoadModal } from './components/LoadModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
+import { AdminPanelModal } from './components/AdminPanelModal';
 
 // Standard 1.0 scale in the simulation/editor; automatically scaled down by 0.67 on export
 const DEFAULT_ARGS: BlockFrameArgs = {
@@ -166,20 +185,64 @@ export default function App() {
   const [publishTags, setPublishTags] = useState('Decoracao, Sci-Fi');
   const [showPublishModal, setShowPublishModal] = useState(false);
 
+  // User Authentication State (Firebase Auth)
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+
+  // Admin & Item Defaults Configuration System (jeanpierreowner@gmail.com)
+  const [admins, setAdmins] = useState<AdminUser[]>(() => getLocalAdmins());
+  const [itemDefaults, setItemDefaults] = useState<Record<string, ItemDefaultConfig>>(() => getLocalItemDefaults());
+  const [showAdminModal, setShowAdminModal] = useState<boolean>(false);
+  const [adminEditingItemId, setAdminEditingItemId] = useState<string | null>(null);
+
+  // Determine if the active session is an authorized administrator (via Google login)
+  const isAdmin = useMemo(() => {
+    const activeEmail = (currentUser?.email || '').toLowerCase().trim();
+    if (!activeEmail) return false;
+    if (activeEmail === PRIMARY_OWNER_EMAIL.toLowerCase()) return true;
+    return admins.some(a => a.email.toLowerCase() === activeEmail);
+  }, [currentUser, admins]);
+
+  // Subscribe to Admins and Item Defaults from Firestore in real-time
+  useEffect(() => {
+    const unsubAdmins = subscribeAdmins((newAdmins) => {
+      setAdmins(newAdmins);
+    });
+    const unsubDefaults = subscribeItemDefaults((newDefaults) => {
+      setItemDefaults(newDefaults);
+    });
+    return () => {
+      unsubAdmins();
+      unsubDefaults();
+    };
+  }, [currentUser]);
+
   // Modals & Logs
   const [showCodeModal, setShowCodeModal] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
+  const [copiedConfig, setCopiedConfig] = useState(false);
   const [systemNotification, setSystemNotification] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+
+  // Track Firebase Auth state
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (user?.displayName) {
+        setPublishAuthor(user.displayName);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // BDStudio UI States (Matching reference interface)
   const [projectName, setProjectName] = useState('Project');
+  // Abas abrindo individualmente: starts with elements open, others closed
   const [accordionSections, setAccordionSections] = useState({
     elements: true,
-    project: true,
-    properties: true,
+    project: false,
+    properties: false,
     nbt: true,
-    transforms: true
+    transforms: false
   });
+  const [clipboardEntities, setClipboardEntities] = useState<BlockFrameEntity[]>([]);
   const [showBottomDrawer, setShowBottomDrawer] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
@@ -200,18 +263,23 @@ export default function App() {
     localStorage.setItem('blockframe_custom_folder_textures', JSON.stringify(folderTextures));
   }, [folderTextures]);
 
-  // Load initial community data
+  // Load community data with real-time Firestore synchronization
   useEffect(() => {
-    loadCommunityProjects();
-    // Warm up the active workspace with the first preset so they have something cool instantly
-    const initialPreset = PRESET_PROJECTS[0];
-    if (initialPreset) {
-      try {
-        setEntities(normalizeEntitiesToSimulation(JSON.parse(initialPreset.entitiesJson)));
-      } catch (e) {
-        console.error("Erro ao carregar preset inicial:", e);
+    setLoadingProjects(true);
+    const unsubscribe = subscribeProjects(
+      (projs) => {
+        setProjects(projs);
+        setLoadingProjects(false);
+      },
+      () => {
+        setLoadingProjects(false);
       }
-    }
+    );
+
+    // Warm up the active workspace with clean empty scene (portal removed on load as requested)
+    setEntities([]);
+
+    return () => unsubscribe();
   }, []);
 
   const loadCommunityProjects = async () => {
@@ -275,6 +343,103 @@ export default function App() {
 
   const toggleAccordion = (key: keyof typeof accordionSections) => {
     setAccordionSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Abre uma aba individualmente fechando as outras (para navegação limpa)
+  const openSectionIndividually = (key: keyof typeof accordionSections) => {
+    setAccordionSections({
+      elements: key === 'elements',
+      project: key === 'project',
+      properties: key === 'properties',
+      nbt: key === 'nbt' || key === 'properties',
+      transforms: key === 'transforms'
+    });
+  };
+
+  const openAllSections = () => {
+    setAccordionSections({
+      elements: true,
+      project: true,
+      properties: true,
+      nbt: true,
+      transforms: true
+    });
+  };
+
+  // Copy selected entities to internal clipboard (Ctrl+C)
+  const handleCopySelected = () => {
+    if (selectedIds.length === 0) {
+      showToast('Nenhum elemento selecionado para copiar', 'info');
+      return;
+    }
+    const toCopy = entities.filter(e => selectedIds.includes(e.id));
+    setClipboardEntities(deepCopy(toCopy));
+    showToast(`${toCopy.length} elemento(s) copiado(s) para área de transferência`);
+  };
+
+  // Paste clipboard entities with snap offset (Ctrl+V)
+  const handlePaste = () => {
+    if (clipboardEntities.length === 0) {
+      showToast('Área de transferência vazia. Copie elementos com Ctrl+C primeiro.', 'info');
+      return;
+    }
+    pushStateToHistory(entities, `Colar ${clipboardEntities.length} elemento(s)`);
+    const offset = gridSnap > 0 ? gridSnap : 1;
+    const newIds: string[] = [];
+    const pastedList: BlockFrameEntity[] = clipboardEntities.map(ent => {
+      const newId = `bf-copy-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      newIds.push(newId);
+      return {
+        ...deepCopy(ent),
+        id: newId,
+        pos: {
+          x: Math.round((ent.pos.x + offset) * 1000) / 1000,
+          y: ent.pos.y,
+          z: ent.pos.z
+        }
+      };
+    });
+
+    setEntities(prev => [...prev, ...pastedList]);
+    setSelectedIds(newIds);
+    showToast(`${pastedList.length} elemento(s) colado(s)!`);
+  };
+
+  // Inverter seleção na lista de entidades
+  const handleInvertSelection = () => {
+    if (entities.length === 0) return;
+    const inverted = entities.filter(e => !selectedIds.includes(e.id)).map(e => e.id);
+    setSelectedIds(inverted);
+    showToast(`Seleção invertida (${inverted.length} selecionado(s))`);
+  };
+
+  // Selecionar entidades na simulação 3D: Shift para múltiplos, Ctrl/Cmd para alternar/individual
+  const handleSelectEntityInViewport = (
+    id: string | null,
+    modifiers?: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }
+  ) => {
+    const isShift = !!modifiers?.shiftKey;
+    const isCtrl = !!(modifiers?.ctrlKey || modifiers?.metaKey);
+
+    if (!id) {
+      // Clicou no chão / vazio
+      if (!isShift && !isCtrl) {
+        setSelectedIds([]);
+      }
+      return;
+    }
+
+    if (isShift) {
+      // Shift: adiciona à seleção múltipla
+      setSelectedIds(prev => (prev.includes(id) ? prev : [...prev, id]));
+    } else if (isCtrl) {
+      // Ctrl: alterna (deseleciona se já estiver, ou seleciona individualmente)
+      setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+    } else {
+      // Clique padrão: seleciona somente este bloco
+      setSelectedIds([id]);
+    }
+    setActiveTool('select');
   };
 
   const handleDuplicateSelected = () => {
@@ -378,6 +543,22 @@ export default function App() {
         }
       }
 
+      // Ctrl+C / Cmd+C copies selected entities
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        if (activeTab === 'editor' && selectedIds.length > 0) {
+          e.preventDefault();
+          handleCopySelected();
+        }
+      }
+
+      // Ctrl+V / Cmd+V pastes copied entities
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        if (activeTab === 'editor' && clipboardEntities.length > 0) {
+          e.preventDefault();
+          handlePaste();
+        }
+      }
+
       // Ctrl+A / Cmd+A selects all entities when in editor
       if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
         if (activeTab === 'editor' && entities.length > 0) {
@@ -390,7 +571,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [selectedIds, entities, activeTab]);
+  }, [selectedIds, entities, activeTab, clipboardEntities, gridSnap]);
 
   const handleNewProject = () => {
     if (entities.length > 0) {
@@ -497,7 +678,7 @@ export default function App() {
     if (selectedIds.length === 0) {
       setBrushArgs(prev => ({
         ...prev,
-        size: { ...prev.size, [axis]: Math.max(0.05, Math.round(value * 1000) / 1000) }
+        size: { ...prev.size, [axis]: Math.max(0.001, Math.round(value * 10000) / 10000) }
       }));
       return;
     }
@@ -510,7 +691,7 @@ export default function App() {
               ...e.args,
               size: {
                 ...e.args.size,
-                [axis]: Math.max(0.05, Math.round(value * 1000) / 1000)
+                [axis]: Math.max(0.001, Math.round(value * 10000) / 10000)
               }
             }
           };
@@ -538,6 +719,9 @@ export default function App() {
   const handleSelectBrushNode = (nodeId: string) => {
     setBrushNode(nodeId);
     
+    // Check if admin has configured default properties for this item
+    const customConfig = itemDefaults[nodeId];
+    
     // Auto-detect item frame / wielditem mode based on BetterCraft Registry metadata
     const itemMeta = findBetterCraftItem(nodeId);
     const isWieldItem = itemMeta
@@ -563,9 +747,16 @@ export default function App() {
           'mcl_core:dry_shrub'
         ].includes(nodeId);
 
+    const effectiveNodeMode = customConfig !== undefined ? customConfig.isNode : !isWieldItem;
+    const defaultScale = customConfig?.scale !== undefined
+      ? customConfig.scale
+      : (!effectiveNodeMode ? 0.3 : 1.0);
+
     setBrushArgs(prev => ({
       ...prev,
-      node: !isWieldItem
+      node: effectiveNodeMode,
+      size: { x: defaultScale, y: defaultScale, z: defaultScale },
+      rotate: !effectiveNodeMode ? { x: -45, y: 0, z: 0 } : prev.rotate
     }));
 
     // If we have blocks currently selected, apply this node material to the selection! Like /blockframe_apply default:stone
@@ -580,7 +771,8 @@ export default function App() {
               color: undefined,
               args: {
                 ...e.args,
-                node: !isWieldItem
+                node: effectiveNodeMode,
+                size: { x: defaultScale, y: defaultScale, z: defaultScale }
               }
             };
           }
@@ -592,36 +784,42 @@ export default function App() {
 
   const handleSelectBetterCraftBrush = (item: BetterCraftItem) => {
     setBrushNode(item.id);
-    const isItemMode = item.type !== 'node';
+    const customConfig = itemDefaults[item.id];
+    const isNodeMode = customConfig !== undefined ? customConfig.isNode : item.type === 'node';
+    const defaultScale = customConfig?.scale !== undefined ? customConfig.scale : (!isNodeMode ? 0.3 : 1.0);
+
     setBrushArgs(prev => ({
       ...prev,
-      node: !isItemMode,
-      size: isItemMode ? { x: 0.3, y: 0.3, z: 0.3 } : prev.size,
-      rotate: isItemMode ? { x: -45, y: 0, z: 0 } : prev.rotate
+      node: isNodeMode,
+      size: { x: defaultScale, y: defaultScale, z: defaultScale },
+      rotate: !isNodeMode ? { x: -45, y: 0, z: 0 } : prev.rotate
     }));
-    showToast(`Pincel ativo: ${item.name} (${item.type === 'node' ? 'Bloco 3D' : 'Item 1 Face'})`);
+    showToast(`Pincel ativo: ${customConfig?.label || item.name} (${isNodeMode ? 'Bloco 3D' : 'Item 1 Face'})`);
   };
 
   const handleInsertBetterCraftEntity = (item: BetterCraftItem) => {
-    const isItemMode = item.type !== 'node';
+    const customConfig = itemDefaults[item.id];
+    const isNodeMode = customConfig !== undefined ? customConfig.isNode : item.type === 'node';
+    const defaultScale = customConfig?.scale !== undefined ? customConfig.scale : (!isNodeMode ? 0.3 : 1.0);
+
     const newEntity: BlockFrameEntity = {
       id: `bf-ent-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       node: item.id,
       pos: { x: 0, y: Math.max(0.5, entities.length * 0.2), z: 0 },
       args: {
-        size: isItemMode ? { x: 0.3, y: 0.3, z: 0.3 } : { x: 1, y: 1, z: 1 },
-        rotate: isItemMode ? { x: -45, y: 0, z: 0 } : { x: 0, y: 0, z: 0 },
+        size: { x: defaultScale, y: defaultScale, z: defaultScale },
+        rotate: !isNodeMode ? { x: -45, y: 0, z: 0 } : { x: 0, y: 0, z: 0 },
         mirror: 'none',
         glow: 0,
         collision: true,
-        node: !isItemMode
+        node: isNodeMode
       },
       type: 'placed',
       color: item.color
     };
-    pushStateToHistory(entities, `Inserir ${item.name}`);
+    pushStateToHistory(entities, `Inserir ${customConfig?.label || item.name}`);
     setEntities(prev => [...prev, newEntity]);
-    showToast(`Inserido na cena: ${item.name}`);
+    showToast(`Inserido na cena: ${customConfig?.label || item.name} (${isNodeMode ? 'Bloco 3D' : 'Item 1 Face'})`);
   };
 
   // Single block action updates (Sidebar controls)
@@ -845,7 +1043,7 @@ export default function App() {
     const tagList = publishTags.split(',').map(s => s.trim()).filter(Boolean);
 
     try {
-      const savedProj = await saveProject({
+      await saveProject({
         id: `bf-project-${Date.now()}`,
         title: publishTitle,
         description: publishDesc,
@@ -859,15 +1057,15 @@ export default function App() {
         sizeY: Math.round(maxY) || 1,
         sizeZ: Math.round(maxZ * 2) || 1,
         entitiesJson: generateBlockFrameJSON(entities, publishTitle)
-      });
+      }, currentUser?.uid);
 
       setPublishTitle('');
       setPublishDesc('');
       setShowPublishModal(false);
-      showToast('Projeto publicado com sucesso de forma persistente!');
+      showToast('Projeto publicado com sucesso no Firebase Firestore!');
       loadCommunityProjects();
     } catch (err) {
-      showToast('Falha de rede ao tentar publicar no Supabase', 'error');
+      showToast('Falha ao tentar publicar no Firebase', 'error');
     }
   };
 
@@ -1161,8 +1359,17 @@ export default function App() {
       }
     });
 
-    return combined;
-  }, [customNodes]);
+    // Apply any admin configured item defaults (custom name / label and custom image / texture)
+    return combined.map(node => {
+      const def = itemDefaults[node.id];
+      if (!def) return node;
+      return {
+        ...node,
+        name: def.label || node.name,
+        texture: def.image || node.texture
+      };
+    });
+  }, [customNodes, itemDefaults]);
 
   // Filters for materials pallet
   const filteredMaterialList = useMemo(() => {
@@ -1361,6 +1568,67 @@ export default function App() {
             <span className="hidden md:inline">BETTERCRAFT (850+)</span>
           </button>
 
+          {/* Admin Panel Button (When logged in as jeanpierreowner@gmail.com or other admin) */}
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setAdminEditingItemId(null);
+                setShowAdminModal(true);
+              }}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-black cursor-pointer transition-all flex items-center gap-1.5 bg-gradient-to-r from-amber-500/25 to-yellow-500/20 hover:from-amber-500/35 hover:to-yellow-500/30 text-amber-300 border border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.25)]"
+              title="Abrir Painel Admin: Configurar itens padrão (1 face vs 3D, imagem na lista) e gerenciar administradores"
+            >
+              <Shield className="w-3.5 h-3.5 text-amber-400 stroke-[2.5]" />
+              <span className="uppercase tracking-wider">PAINEL ADMIN</span>
+            </button>
+          )}
+
+          {/* Google Auth Status & Action */}
+          {currentUser ? (
+            <div className="flex items-center gap-2 bg-[#151620] px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
+              {currentUser.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt={currentUser.displayName || 'Avatar'}
+                  className="w-4 h-4 rounded-full border border-emerald-500/40"
+                />
+              ) : (
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+              <span className="hidden lg:inline text-slate-200 font-bold max-w-[120px] truncate text-[11px]">
+                {currentUser.displayName || currentUser.email || 'Usuário'}
+              </span>
+              <button
+                onClick={async () => {
+                  await logOut();
+                  showToast('Desconectado com sucesso', 'info');
+                }}
+                className="text-slate-500 hover:text-rose-400 p-0.5 rounded cursor-pointer transition-colors ml-0.5"
+                title="Sair da conta Google"
+              >
+                <LogOut className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={async () => {
+                  try {
+                    await signInWithGoogle();
+                    showToast('Login Google efetuado com sucesso!');
+                  } catch (err: any) {
+                    showToast('Falha no login com Google', 'error');
+                  }
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                title="Entrar com sua conta Google para gerenciar seus projetos"
+              >
+                <User className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline text-[11px]">Login Google</span>
+              </button>
+            </div>
+          )}
+
           {/* Shortcuts Modal Button */}
           <button
             onClick={() => setShowShortcutsModal(true)}
@@ -1395,14 +1663,14 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('onboarding')}
-              className={`px-2.5 py-1 rounded text-xs font-bold cursor-pointer transition-all flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
                 activeTab === 'onboarding'
-                  ? 'bg-[#0a0b10] text-cyan-400 border border-slate-800 shadow-sm'
+                  ? 'bg-[#0a0b10] text-amber-400 border border-slate-800 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Database className="w-3 h-3" />
-              <span>Supabase</span>
+              <Database className="w-3 h-3 text-amber-400" />
+              <span>Firebase</span>
             </button>
           </div>
         </div>
@@ -1465,6 +1733,12 @@ export default function App() {
             setSidebarLeftTab={setSidebarLeftTab}
             accordionSections={accordionSections}
             toggleAccordion={toggleAccordion}
+            openSectionIndividually={openSectionIndividually}
+            openAllSections={openAllSections}
+            handleCopySelected={handleCopySelected}
+            handlePaste={handlePaste}
+            handleInvertSelection={handleInvertSelection}
+            clipboardCount={clipboardEntities.length}
             showBottomDrawer={showBottomDrawer}
             setShowBottomDrawer={setShowBottomDrawer}
             customNodes={customNodes}
@@ -1478,6 +1752,16 @@ export default function App() {
             setPaletteSearch={setPaletteSearch}
             presetProjects={PRESET_PROJECTS}
             pushStateToHistory={pushStateToHistory}
+            isAdmin={isAdmin}
+            onOpenAdminPanel={() => {
+              setAdminEditingItemId(null);
+              setShowAdminModal(true);
+            }}
+            onOpenAdminItemEdit={(itemId) => {
+              setAdminEditingItemId(itemId);
+              setShowAdminModal(true);
+            }}
+            itemDefaults={itemDefaults}
           />
         )}
 
@@ -1525,8 +1809,8 @@ export default function App() {
             {/* List columns layout responsive cards */}
             {loadingProjects ? (
               <div className="text-center py-20 font-mono text-slate-400 space-y-4">
-                <div className="w-10 h-10 border-4 border-t-cyan-400 border-r-transparent border-slate-800 rounded-full animate-spin mx-auto" />
-                <p className="text-xs">Buscando banco PostgreSQL do Supabase...</p>
+                <div className="w-10 h-10 border-4 border-t-amber-400 border-r-transparent border-slate-800 rounded-full animate-spin mx-auto" />
+                <p className="text-xs">Sincronizando projetos em tempo real com o Firebase Firestore...</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1586,7 +1870,7 @@ export default function App() {
                           <span className="truncate max-w-[80px] font-bold text-slate-400">{proj.author}</span>
                         </div>
                         
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 items-center">
                           <button
                             onClick={(e) => handleLike(proj.id, e)}
                             className="flex items-center gap-1 hover:text-rose-400 transition-colors cursor-pointer"
@@ -1598,6 +1882,21 @@ export default function App() {
                             <DownloadCloud className="w-3.5 h-3.5" />
                             <span>{proj.downloads || 0}</span>
                           </div>
+                          {proj.authorId && currentUser && proj.authorId === currentUser.uid && (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Excluir o projeto "${proj.title}" do Firestore?`)) {
+                                  await deleteProject(proj.id);
+                                  showToast('Projeto removido do Firebase!');
+                                }
+                              }}
+                              className="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-0.5 ml-1"
+                              title="Excluir meu projeto"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1625,61 +1924,79 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 3: Detailed Onboarding, Credentials Setup / SQL Schema */}
+        {/* Tab 3: Firebase Dashboard & Real-time Cloud Firestore Status */}
         {activeTab === 'onboarding' && (
           <div className="p-6 max-w-4xl mx-auto w-full space-y-6 font-mono">
-            
-            {/* Card info credentials instruction */}
+            {/* Card info Firebase status */}
             <div className="bg-[#0b0e16] border border-slate-900 p-6 rounded-2xl space-y-4">
-              <h3 className="text-md font-bold uppercase tracking-widest text-slate-100 flex items-center gap-2">
-                <Database className="w-5 h-5 text-cyan-400" /> Conectar seu Banco de Dados Supabase
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-md font-bold uppercase tracking-widest text-slate-100 flex items-center gap-2">
+                  <Database className="w-5 h-5 text-amber-400" /> Firebase Cloud Firestore & Auth
+                </h3>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Conectado e Ativo
+                </span>
+              </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Por padrão, as estruturas dadas são salvas e lidas dinamicamente do seu navegador (<span className="text-cyan-400 font-bold">LocalStorage</span>).
-                Para que os projetos se tornem verdadeiramente globais e salvos de forma estática para todos os jogadores do Minetest, conecte seu próprio banco PostgreSQL de forma rápida seguindo estas etapas:
+                A aplicação está integrada com o <span className="text-amber-400 font-bold">Google Firebase</span>, utilizando o banco NoSQL <span className="text-cyan-400 font-bold">Cloud Firestore</span> em tempo real e o <span className="text-emerald-400 font-bold">Firebase Authentication (Google)</span>. Todas as estruturas publicadas são sincronizadas instantaneamente para todos os usuários sem necessidade de recarregar a página.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 space-y-2.5">
-                  <span className="text-cyan-400 font-bold font-mono">Passo 1: Criar chaves env</span>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    Adicione em seu painel de Segredos ou arquivo local as variáveis públicas listadas no <span className="text-purple-400 font-bold">.env.example</span>:
-                  </p>
-                  <code className="block bg-[#090b12] p-2 rounded text-[10px] text-slate-300 border border-slate-900 overflow-x-auto whitespace-pre leading-relaxed">
-                    VITE_SUPABASE_URL="https://your-id.supabase.co"<br />
-                    VITE_SUPABASE_ANON_KEY="your-anon-token"
-                  </code>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 space-y-1.5">
+                  <span className="text-amber-400 font-bold">Firebase Project</span>
+                  <div className="text-[11px] text-slate-200 font-mono break-all">{firebaseConfig.projectId}</div>
+                  <div className="text-[10px] text-slate-500">Google Cloud Platform</div>
                 </div>
 
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 space-y-2">
-                  <span className="text-cyan-400 font-bold font-mono">Passo 2: Rodar o SQL</span>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    Acesse o editor do painel SQL Console no Supabase e execute a DDL de criação da tabela de projetos do minetest blockframe listado abaixo.
-                  </p>
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 space-y-1.5">
+                  <span className="text-cyan-400 font-bold">Database ID</span>
+                  <div className="text-[11px] text-slate-200 font-mono truncate" title={firebaseConfig.firestoreDatabaseId}>
+                    {firebaseConfig.firestoreDatabaseId}
+                  </div>
+                  <div className="text-[10px] text-slate-500">Coleção: /projects</div>
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 space-y-1.5">
+                  <span className="text-emerald-400 font-bold">Autenticação</span>
+                  <div className="text-[11px] text-slate-200 font-mono truncate">
+                    {currentUser ? currentUser.email : 'Visitante (Público)'}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {currentUser ? 'Sessão ativa com Google' : 'Faça login no botão acima'}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* SQL schema query display */}
+            {/* Security Rules & Real-time Features */}
             <div className="bg-[#0b0e16] border border-slate-900 p-6 rounded-2xl space-y-4">
-              <div className="flex justify-between items-center bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-905">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">DDL Schema: SQL CREATE TABLE</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
-                    setCopiedSql(true);
-                    setTimeout(() => setCopiedSql(false), 2000);
-                  }}
-                  className="text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 px-3 py-1 rounded transition-colors cursor-pointer border border-slate-800 flex items-center gap-1"
-                >
-                  {copiedSql ? 'Copiado!' : 'Copiar SQL'}
-                </button>
+              <div className="flex justify-between items-center bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-900">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+                  Regras de Segurança Firestore (ABAC Fortalecido)
+                </span>
+                <span className="text-[10px] bg-emerald-950/40 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-bold">
+                  firestore.rules Ativas
+                </span>
               </div>
 
-              <div className="relative group">
-                <pre className="bg-slate-950 text-slate-300 text-[10px] p-4 rounded-xl overflow-x-auto border border-slate-900 max-h-[300px] leading-relaxed scrollbar-thin select-text font-mono">
-                  {SUPABASE_SQL_SCHEMA}
-                </pre>
+              <div className="space-y-2 text-xs text-slate-400 leading-relaxed">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Visualização Aberta:</strong> Qualquer jogador pode navegar pela galeria da comunidade e carregar estruturas voxel para o editor 3D.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Incrementos Atômicos:</strong> Curtidas e downloads são incrementados de forma atômica e validada sem risco de sobreposição de concorrência.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Proteção de Autoria:</strong> Apenas o criador autenticado do projeto pode editar ou remover sua própria estrutura da galeria.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Cache e Fallback Local:</strong> O editor mantém sincronização em memória e LocalStorage, permitindo continuar criando mesmo offline.</span>
+                </div>
               </div>
             </div>
 
@@ -1766,8 +2083,8 @@ export default function App() {
               </div>
 
               <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 text-[10px] text-slate-400 leading-relaxed flex items-center gap-2">
-                <Info className="w-4 h-4 text-purple-400 shrink-0" />
-                <span>Isso salvará a estrutura de {entities.length} blocos voxel de forma estática {isSupabaseConfigured ? 'na tabela PostgreSQL do Supabase' : 'no armazenamento local de sua máquina'}.</span>
+                <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Isso salvará a estrutura de {entities.length} blocos voxel de forma persistente no banco de dados Firebase Cloud Firestore.</span>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -1796,6 +2113,38 @@ export default function App() {
         onClose={() => setIsBetterCraftBrowserOpen(false)}
         onSelectBrush={handleSelectBetterCraftBrush}
         onInsertEntity={handleInsertBetterCraftEntity}
+        itemDefaults={itemDefaults}
+        isAdmin={isAdmin}
+        onOpenAdminItemEdit={(itemId) => {
+          setAdminEditingItemId(itemId);
+          setShowAdminModal(true);
+        }}
+      />
+
+      {/* Admin Panel Modal (jeanpierreowner@gmail.com) */}
+      <AdminPanelModal
+        isOpen={showAdminModal}
+        onClose={() => {
+          setShowAdminModal(false);
+          setAdminEditingItemId(null);
+        }}
+        currentUserEmail={currentUser?.email || null}
+        admins={admins}
+        onAddAdmin={async (email) => {
+          await addAdminUser(email, currentUser?.email || 'admin');
+        }}
+        onRemoveAdmin={async (email) => {
+          await removeAdminUser(email);
+        }}
+        itemDefaults={itemDefaults}
+        onSaveItemDefault={async (config) => {
+          await saveItemDefaultProperty(config, currentUser?.email || 'admin');
+        }}
+        onDeleteItemDefault={async (itemId) => {
+          await deleteItemDefaultProperty(itemId);
+        }}
+        showToast={showToast}
+        initialEditingItemId={adminEditingItemId}
       />
 
       {/* Load / Import Modal */}

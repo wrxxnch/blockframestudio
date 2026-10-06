@@ -10,17 +10,19 @@ import {
   ChevronRight,
   Sparkles,
   Filter,
-  Check
+  Check,
+  Sliders,
+  Crown
 } from 'lucide-react';
-import { MinetestNodeMetadata } from '../types';
+import { MinetestNodeMetadata, ItemDefaultConfig } from '../types';
 import { resolveNodeTextureUrl } from '../textureUtils';
 
 /**
  * Thumbnail component with image error recovery and 3D isometric block representation
  */
-function ItemThumbnail({ node }: { node: MinetestNodeMetadata }) {
+function ItemThumbnail({ node, customImage }: { node: MinetestNodeMetadata; customImage?: string }) {
   const [imgError, setImgError] = useState(false);
-  const texture = node.texture || resolveNodeTextureUrl(node.id);
+  const texture = customImage || node.texture || resolveNodeTextureUrl(node.id);
 
   return (
     <div className="w-10 h-10 rounded-lg bg-[#0c0d16] border border-slate-700/60 flex items-center justify-center shrink-0 overflow-hidden relative shadow-inner">
@@ -83,6 +85,9 @@ interface ItemLibrarySidebarProps {
   customNodes: Array<{ id: string; name: string; color: string; texture?: string }>;
   onAddCustomNode: (id: string, name: string, color: string, texture?: string) => void;
   onDeleteCustomNode: (id: string) => void;
+  itemDefaults?: Record<string, ItemDefaultConfig>;
+  isAdmin?: boolean;
+  onOpenAdminItemEdit?: (itemId: string) => void;
 }
 
 // Category filter definitions
@@ -106,7 +111,10 @@ export function ItemLibrarySidebar({
   onOpenBetterCraftBrowser,
   customNodes,
   onAddCustomNode,
-  onDeleteCustomNode
+  onDeleteCustomNode,
+  itemDefaults = {},
+  isAdmin = false,
+  onOpenAdminItemEdit
 }: ItemLibrarySidebarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -317,6 +325,11 @@ export function ItemLibrarySidebar({
             ) : (
               filteredNodes.map(node => {
                 const isSelectedBrush = brushNode === node.id;
+                const customConfig = itemDefaults[node.id];
+                const displayName = customConfig?.label || node.name;
+                const customImage = customConfig?.image;
+                const isNode = customConfig !== undefined ? customConfig.isNode : undefined;
+
                 return (
                   <div
                     key={node.id}
@@ -326,10 +339,10 @@ export function ItemLibrarySidebar({
                         'application/json',
                         JSON.stringify({
                           id: node.id,
-                          name: node.name,
+                          name: displayName,
                           category: node.category,
                           color: node.color,
-                          texture: node.texture
+                          texture: customImage || node.texture
                         })
                       );
                       e.dataTransfer.setData('text/plain', node.id);
@@ -344,22 +357,31 @@ export function ItemLibrarySidebar({
                     title="Clique para selecionar como pincel ou Arraste para o cenário 3D"
                   >
                     {/* Visual Image / 3D Block Thumbnail */}
-                    <ItemThumbnail node={node} />
+                    <ItemThumbnail node={node} customImage={customImage} />
 
                     {/* Metadata & Labels */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-xs font-semibold text-slate-200 truncate group-hover:text-cyan-300 transition-colors">
-                          {node.name}
+                          {displayName}
                         </span>
-                        {isSelectedBrush && (
-                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
-                            <Check className="w-3 h-3" />
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {isNode !== undefined && (
+                            <span className={`text-[8px] font-bold px-1 py-0.2 rounded font-mono ${
+                              isNode ? 'bg-cyan-950/60 text-cyan-300 border border-cyan-800/40' : 'bg-amber-950/60 text-amber-300 border border-amber-800/40'
+                            }`}>
+                              {isNode ? '3D' : '1F'}
+                            </span>
+                          )}
+                          {isSelectedBrush && (
+                            <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                              <Check className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] text-slate-500 font-mono truncate max-w-[130px]">
+                        <span className="text-[10px] text-slate-500 font-mono truncate max-w-[120px]">
                           {node.id}
                         </span>
                         {node.category && node.category !== 'bettercraft' && (
@@ -369,6 +391,21 @@ export function ItemLibrarySidebar({
                         )}
                       </div>
                     </div>
+
+                    {/* Admin quick edit button */}
+                    {isAdmin && onOpenAdminItemEdit && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenAdminItemEdit(node.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 rounded transition-all cursor-pointer"
+                        title={`Editar padrão global de ${displayName}`}
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                      </button>
+                    )}
 
                     {/* Drag Grip Handle */}
                     <div

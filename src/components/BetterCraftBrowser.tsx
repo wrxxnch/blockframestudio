@@ -15,16 +15,21 @@ import {
   Shield,
   Zap,
   Leaf,
-  Hammer
+  Hammer,
+  Sliders
 } from 'lucide-react';
 import { BETTERCRAFT_ITEMS, BetterCraftItem, generateLuaRegistrationCode } from '../bettercraftRegistry';
 import { resolveNodeTextureUrl } from '../textureUtils';
+import { ItemDefaultConfig } from '../types';
 
 interface BetterCraftBrowserProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectBrush: (item: BetterCraftItem) => void;
   onInsertEntity: (item: BetterCraftItem) => void;
+  itemDefaults?: Record<string, ItemDefaultConfig>;
+  isAdmin?: boolean;
+  onOpenAdminItemEdit?: (itemId: string) => void;
 }
 
 const CATEGORIES = [
@@ -45,6 +50,9 @@ export default function BetterCraftBrowser({
   onClose,
   onSelectBrush,
   onInsertEntity,
+  itemDefaults = {},
+  isAdmin = false,
+  onOpenAdminItemEdit,
 }: BetterCraftBrowserProps) {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -190,7 +198,11 @@ export default function BetterCraftBrowser({
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
             {filteredItems.map((item) => {
-              const isNode = item.type === 'node';
+              const customConfig = itemDefaults[item.id];
+              const isNode = customConfig !== undefined ? customConfig.isNode : item.type === 'node';
+              const displayName = customConfig?.label || item.name;
+              const displayTexture = customConfig?.image || item.texture || resolveNodeTextureUrl(item.id);
+
               return (
                 <div
                   key={item.id}
@@ -200,10 +212,10 @@ export default function BetterCraftBrowser({
                   <div>
                     <div className="flex items-start justify-between gap-1 mb-2">
                       <div className="w-11 h-11 rounded-lg bg-slate-900 border border-slate-800/80 flex items-center justify-center p-1 relative overflow-hidden group-hover:border-cyan-500/40">
-                        {item.texture || resolveNodeTextureUrl(item.id) ? (
+                        {displayTexture ? (
                           <img
-                            src={item.texture || resolveNodeTextureUrl(item.id)}
-                            alt={item.name}
+                            src={displayTexture}
+                            alt={displayName}
                             className="w-8 h-8 object-contain pixelated"
                             style={{ imageRendering: 'pixelated' }}
                             onError={(e) => {
@@ -222,21 +234,31 @@ export default function BetterCraftBrowser({
                         />
                       </div>
 
-                      <span
-                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${
-                          isNode
-                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                            : item.type === 'tool'
-                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        }`}
-                      >
-                        {item.type}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {isAdmin && onOpenAdminItemEdit && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenAdminItemEdit(item.id)}
+                            className="p-1 rounded bg-slate-800/80 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
+                            title={`Editar propriedades padrão de ${displayName}`}
+                          >
+                            <Sliders className="w-3 h-3" />
+                          </button>
+                        )}
+                        <span
+                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                            isNode
+                              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}
+                        >
+                          {isNode ? 'node 3d' : '1 face'}
+                        </span>
+                      </div>
                     </div>
 
                     <h3 className="text-xs font-semibold text-slate-200 line-clamp-1 group-hover:text-cyan-300">
-                      {item.name}
+                      {displayName}
                     </h3>
                     <p className="text-[10px] font-mono text-slate-500 truncate mt-0.5" title={item.id}>
                       {item.id}
